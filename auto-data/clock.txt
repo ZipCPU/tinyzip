@@ -1,0 +1,84 @@
+################################################################################
+##
+## Filename: 	clock.txt
+##
+## Project:	TinyZip, a demonstration project for the TinyFPGA B2 board
+##
+## Purpose:	
+##
+## Creator:	Dan Gisselquist, Ph.D.
+##		Gisselquist Technology, LLC
+##
+################################################################################
+##
+## Copyright (C) 2017-2018, Gisselquist Technology, LLC
+##
+## This program is free software (firmware): you can redistribute it and/or
+## modify it under the terms of  the GNU General Public License as published
+## by the Free Software Foundation, either version 3 of the License, or (at
+## your option) any later version.
+##
+## This program is distributed in the hope that it will be useful, but WITHOUT
+## ANY WARRANTY; without even the implied warranty of MERCHANTIBILITY or
+## FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+## for more details.
+##
+## You should have received a copy of the GNU General Public License along
+## with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
+## target there if the PDF file isn't present.)  If not, see
+## <http://www.gnu.org/licenses/> for a copy.
+##
+## License:	GPL, v3, as defined and found on www.gnu.org,
+##		http://www.gnu.org/licenses/gpl.html
+##
+##
+################################################################################
+##
+##
+@$CLKFREQHZ=50000000
+@PREFIX=clk
+@CLOCK.NAME=clk
+@TOP.DEFNS=
+	wire		s_clk, s_reset;
+@TOP.INSERT=
+	assign	s_reset = 1'b0; // This design requires local, not global resets
+	wire	clk_50mhz, pll_locked;
+
+`ifdef	VERILATOR
+	assign	clk_50mhz = i_clk;
+	assign	pll_locked = 1'b1;
+`else
+	SB_PLL40_CORE #(
+		.FEEDBACK_PATH("SIMPLE"),
+		.DELAY_ADJUSTMENT_MODE_FEEDBACK("FIXED"),
+		.DELAY_ADJUSTMENT_MODE_RELATIVE("FIXED"),
+		.PLLOUT_SELECT("GENCLK"),
+		.FDA_FEEDBACK(4'b1111),
+		.FDA_RELATIVE(4'b1111),
+		.DIVR(4'd0000),		// Divide by (DIVR+1)  = 1
+		.DIVQ(3'd4),		// Divide by 2^(DIVQ)  = 16
+		.DIVF(7'h31),		// Multiply by (DIVF+1)= 50
+		.FILTER_RANGE(3'b001)
+	) plli (
+		.REFERENCECLK   (i_clk       ),
+		.PLLOUTGLOBAL   (clk_50mhz   ),
+		.LOCK           (pll_locked  ),
+		.BYPASS         (1'b0        ),
+		.RESETB         (1'b1        ),
+		.LATCHINPUTVALUE(1'b0        ),
+		.PLLOUTCORE     (),	// Unused, here down
+		.SDO     (),
+		.SDI     (),
+		.SCLK    (),
+		.EXTFEEDBACK() // Unused
+	);
+`endif
+
+	assign	s_clk = clk_50mhz;
+
+@REGDEFS.H.DEFNS=
+#define	CLKFREQHZ	@$CLKFREQHZ
+@BDEF.DEFN=
+#define	CLKFREQHZ	@$CLKFREQHZ
+@CLOCK.NAME=clk
+@CLOCK.FREQUENCY= @$CLKFREQHZ
