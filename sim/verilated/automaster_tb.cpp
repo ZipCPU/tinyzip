@@ -58,12 +58,6 @@
 void	usage(void) {
 	fprintf(stderr, "USAGE: main_tb <options> [zipcpu-elf-file]\n");
 	fprintf(stderr,
-#ifdef	SDSPI_ACCESS
-"\t-c <img-file>\n"
-"\t\tSpecifies a memory image which will be used to make the SD-card\n"
-"\t\tmore realistic.  Reads from the SD-card will be directed to\n"
-"\t\t\"sectors\" within this image.\n\n"
-#endif
 "\t-d\tSets the debugging flag\n"
 "\t-t <filename>\n"
 "\t\tTurns on tracing, sends the trace to <filename>--assumed to\n"
@@ -77,9 +71,6 @@ int	main(int argc, char **argv) {
 	bool	debug_flag = false, willexit = false;
 //	int	fpga_port = FPGAPORT, serial_port = -(FPGAPORT+1);
 //	int	copy_comms_to_stdout = -1;
-#ifdef	OLEDSIM_H
-	Gtk::Main	main_instance(argc, argv);
-#endif
 	Verilated::commandArgs(argc, argv);
 	MAINTB	*tb = new MAINTB;
 

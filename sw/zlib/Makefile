@@ -45,7 +45,7 @@ INCS    := -I. -I../../rtl
 CFLAGS  := -O3 $(INCS)
 LIBSRCS := udiv.c umod.c syscalls.c crt0.c
 LIBOBJS := $(addprefix $(OBJDIR)/,$(subst .c,.o,$(LIBSRCS)))
-ZIPLIB  := libzbasic.a
+ZIPLIB  := libztiny.a
 all: $(ZIPLIB)
 
 $(OBJDIR)/%.o: %.c

@@ -1,20 +1,18 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Filename: 	builddate.v
+// Filename: 	flashdrvr.h
 //
-// Project:	TinyZip, a demonstration project for the TinyFPGA B2 board
+// Project:	ZBasic, a generic toplevel impl using the full ZipCPU
 //
-// Purpose:	This file records the date of the last build.  Running "make"
-//		in the main directory will create this file.  The `define found
-//	within it then creates a version stamp that can be used to tell which
-//	configuration is within an FPGA and so forth.
+// Purpose:	Flash driver.  Encapsulates writing, both erasing sectors and
+//		the programming pages, to the flash device.
 //
 // Creator:	Dan Gisselquist, Ph.D.
 //		Gisselquist Technology, LLC
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2018, Gisselquist Technology, LLC
+// Copyright (C) 2018, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -38,5 +36,27 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 //
-`define DATESTAMP 32'h20180326
-`define BUILDTIME 32'h00215348
+//
+#ifndef	FLASHDRVR_H
+#define	FLASHDRVR_H
+
+#include "regdefs.h"
+
+class	FLASHDRVR {
+private:
+	DEVBUS	*m_fpga;
+	bool	m_debug;
+
+	bool	verify_config(void);
+	void	set_config(void);
+	void	flwait(void);
+public:
+	FLASHDRVR(DEVBUS *fpga) : m_fpga(fpga), m_debug(false) {}
+	bool	erase_sector(const unsigned sector, const bool verify_erase=true);
+	bool	page_program(const unsigned addr, const unsigned len,
+			const char *data, const bool verify_write=true);
+	bool	write(const unsigned addr, const unsigned len,
+			const char *data, const bool verify=false);
+};
+
+#endif

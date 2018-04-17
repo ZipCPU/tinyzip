@@ -38,16 +38,15 @@
 ##
 .PHONY: all
 PROGRAMS := wbregs netuart zipload zipstate zipdbg
-SCOPES := edidrxscope edidtxscope rawdscope tmdscope
-all: $(PROGRAMS) $(SCOPES) gps
+SCOPES :=
+all: $(PROGRAMS) $(SCOPES)
 CXX := g++
 OBJDIR := obj-pc
 BUSSRCS := hexbus.cpp llcomms.cpp regdefs.cpp byteswap.cpp
-SOURCES := wbregs.cpp netuart.cpp $(BUSSRCS)		\
-	zipload.cpp zipstate.cpp zipdbg.cpp
-	# flashdrvr.cpp		\
-	# netsetup.cpp manping.cpp wbsettime.cpp
-HEADERS := llcomms.h port.h ttybus.h devbus.h
+SOURCES := wbregs.cpp netuart.cpp		\
+	 $(BUSSRCS) zipload.cpp zipstate.cpp zipdbg.cpp
+	# flashdrvr.cpp
+HEADERS := llcomms.h port.h hexbus.h devbus.h
 OBJECTS := $(addprefix $(OBJDIR)/,$(subst .cpp,.o,$(SOURCES)))
 BUSOBJS := $(addprefix $(OBJDIR)/,$(subst .cpp,.o,$(BUSSRCS)))
 CFLAGS := -g -Wall -I. -I../../rtl
@@ -62,11 +61,6 @@ $(OBJDIR)/%.o: %.c
 	$(mk-objdir)
 	$(CXX) $(CFLAGS) -c $< -o $@
 
-.PHONY: gps
-gps:
-gps: $(BUSOBJS) # $(OBJDIR)/scopecls.o
-	@bash -c "if [[ -e gps/Makefile ]]; then $(SUBMAKE) gps; fi"
-
 .PHONY: clean
 clean:
 	rm -rf $(OBJDIR)/ $(PROGRAMS) a.out
@@ -78,8 +72,6 @@ netuart: $(OBJDIR)/netuart.o
 #
 # Some simple programs that just depend upon the ability to talk to the FPGA,
 # and little more. 
-#manping: $(OBJDIR)/manping.o $(BUSOBJS)
-#	$(CXX) $(CFLAGS) $^ -o $@
 zipstate: $(OBJDIR)/zipstate.o $(BUSOBJS)
 	$(CXX) $(CFLAGS) $^ $(LIBS) -o $@
 wbregs: $(OBJDIR)/wbregs.o $(BUSOBJS)
@@ -88,23 +80,14 @@ wbregs: $(OBJDIR)/wbregs.o $(BUSOBJS)
 #
 # Programs that depend upon not just the bus objects, but the flash driver
 # as well.
-wbprogram: $(OBJDIR)/wbprogram.o $(OBJDIR)/flashdrvr.o $(BUSOBJS)
-	$(CXX) -g $^ -o $@
-zipload: $(OBJDIR)/zipload.o $(OBJDIR)/flashdrvr.o $(BUSOBJS) $(OBJDIR)/zipelf.o
+zipload: $(OBJDIR)/zipload.o $(BUSOBJS) $(OBJDIR)/zipelf.o
 	$(CXX) -g $^ -lelf -o $@
 
 
 ## SCOPES
 # These depend upon the scopecls.o, the bus objects, as well as their
 # main file(s).
-edidrxscope: $(OBJDIR)/edidrxscope.o $(OBJDIR)/scopecls.o $(BUSOBJS)
-	$(CXX) -g $^ -o $@
-edidtxscope: $(OBJDIR)/edidtxscope.o $(OBJDIR)/scopecls.o $(BUSOBJS)
-	$(CXX) -g $^ -o $@
-rawdscope: $(OBJDIR)/rawdscope.o $(OBJDIR)/scopecls.o $(BUSOBJS)
-	$(CXX) -g $^ -o $@
-tmdscope: $(OBJDIR)/tmdscope.o $(OBJDIR)/scopecls.o $(BUSOBJS)
-	$(CXX) -g $^ -o $@
+
 
 #
 DBGSRCS  := zopcodes.cpp twoc.cpp
@@ -119,7 +102,7 @@ endef
 define	build-depends
 	@echo "Building dependency file(s)"
 	$(mk-objdir)
-	$(CXX) $(CPPFLAGS) -MM $(SOURCES) > $(OBJDIR)/xdepends.txt
+	$(CXX) $(CFLAGS) -MM $(SOURCES) > $(OBJDIR)/xdepends.txt
 	@sed -e 's/^.*.o: /$(OBJDIR)\/&/' < $(OBJDIR)/xdepends.txt > $(OBJDIR)/depends.txt
 	@rm $(OBJDIR)/xdepends.txt
 endef

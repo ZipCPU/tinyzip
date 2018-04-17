@@ -2,7 +2,7 @@
 
 This design is currently a work in progress.  The goal is to place a
 [ZipCPU](http://zipcpu.com/about/zipcpu.html)
-onto a [TinyFPGA-B2](http://tinyfpga.com) board.
+onto a [TinyFPGA-BX](http://tinyfpga.com) board.
 
 ## Vision
 

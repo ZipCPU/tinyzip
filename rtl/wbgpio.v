@@ -104,7 +104,7 @@ module wbgpio(i_clk, i_wb_cyc, i_wb_stb, i_wb_we, i_wb_data, o_wb_data,
 
 	// Make Verilator happy
 	// verilator lint_off UNUSED
-	wire	[(32-NIN-NOUT+1-1):0]	unused;
+	wire	[(32-NIN-NOUT+1):0]	unused;
 	assign	unused = { i_wb_cyc, i_wb_data[31:(16+NIN-1)],
 			i_wb_data[15:NOUT] };
 	// verilator lint_on  UNUSED

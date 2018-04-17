@@ -44,11 +44,7 @@
 //
 module	cpuops(i_clk,i_reset, i_ce, i_op, i_a, i_b, o_c, o_f, o_valid,
 			o_busy);
-`ifdef	OPT_MULTIPLY
 	parameter	IMPLEMENT_MPY = `OPT_MULTIPLY;
-`else
-	parameter	IMPLEMENT_MPY = 0;
-`endif
 	input	wire	i_clk, i_reset, i_ce;
 	input	wire	[3:0]	i_op;
 	input	wire	[31:0]	i_a, i_b;

@@ -43,6 +43,8 @@
 @DEVID=BUSPIC
 @PIC.BUS= bus_int_vector
 @PIC.MAX= 15
+@MAIN.DEFNS=
+	wire	bus_interrupt;
 @MAIN.INSERT=
 	//
 	// The BUS Interrupt controller

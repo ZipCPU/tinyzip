@@ -47,9 +47,9 @@ all:	data
 # of parts and pieces of our project that autofpga will copy/paste into our
 # main project files.
 #
-DATA := global.txt bkram.txt clock.txt dlyarbiter.txt pic.txt hbconsole.txt \
-	pwrcount.txt buserr.txt version.txt gpio.txt	\
-	zipbones.txt
+DATA := global.txt bkram.txt clock.txt dlyarbiter.txt pic.txt		\
+	hbconsole.txt pwrcount.txt buserr.txt version.txt gpio.txt	\
+	zipbones.txt flexpress.txt
 
 AUTOFPGA := ../../../autofpga/trunk/sw/autofpga
 

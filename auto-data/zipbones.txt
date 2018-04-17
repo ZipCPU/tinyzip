@@ -74,7 +74,6 @@
 	// All we define here is a set of scope wires
 	wire	[31:0]	zip_debug;
 	wire		zip_trigger;
-	wire		bus_interrupt;
 	wire		zip_halted;
 	// A reset wire for the ZipCPU
 	wire		cpu_reset;
@@ -135,6 +134,7 @@
 
 #define	cpu_break 	VVAR(_swic__DOT__cpu_break)
 #define	cpu_cmd_halt	VVAR(_swic__DOT__cmd_halt)
+#define	cpu_reset	VVAR(_swic__DOT__cmd_reset)
 #define	cpu_ipc		VVAR(_swic__DOT__thecpu__DOT__ipc)
 #define	cpu_upc		VVAR(_swic__DOT__thecpu__DOT__r_upc)
 #define	cpu_gie		VVAR(_swic__DOT__thecpu__DOT__r_gie)
@@ -158,7 +158,9 @@
 @SIM.INIT=
 		m_cpu_bombed = 0;
 @SIM.SETRESET=
-		m_core->i_reset = 1;
+		m_core->cpu_reset = 1;
+@SIM.CLRRESET=
+		m_core->cpu_reset = 0;
 @SIM.METHODS=
 
 	void	loadelf(const char *elfname) {
@@ -334,30 +336,28 @@
 #
 #
 #
-@PREFIX=timer
-@ACCESS=BUSTIMER_ACCESS
-@DEVID=TIMER
+@PREFIX=bustimer
+@DEVID=BUSTIMER
+@ACCESS=@$(DEVID)_ACCESS
 @SLAVE.TYPE=DOUBLE
 @SLAVE.BUS=wb
 @NADDR=1
-@REGS.NOTE= // The bus timer
-@REGS.N=1
-@REGS.0= 0 R_@$(DEVID) @$(DEVID)
-@INT.TIMER.WIRE=@$(PREFIX)_int
-@INT.TIMER.PIC=buspic
 @MAIN.INSERT=
 	ziptimer
 		@$(PREFIX)i(i_clk, i_reset, 1'b1,
 			wb_cyc, (wb_stb)&&(@$(PREFIX)_sel), wb_we, wb_data,
 				@$(PREFIX)_ack, @$(PREFIX)_stall,
 				@$(PREFIX)_data, @$(PREFIX)_int);
-@BDEF.IONAME=	_timer
-@BDEF.IOTYPE=	unsigned
-@BDEF.OSDEF=	_BOARD_HAS_TIMER
-@BDEF.OSVAL=	static volatile @$.BDEF.IOTYPE *const @$(BDEF.IONAME) = ((@$.BDEF.IOTYPE *)@$REGBASE);
-@BDEF.DEFN=
-#define	SYSTIMER	@$(BDEF.IONAME)
-
+@INT.BUSTIMER.WIRE= @$(PREFIX)_int
+@INT.BUSTIMER.PIC= buspic
+@REGS.NOTE= // The bus timer
+@REGS.N=1
+@REGS.0= 0 R_@$(DEVID) @$(DEVID)
+@BDEF.IONAME=_bustimer
+@BDEF.IOTYPE=unsigned
+@BDEF.OSDEF=_BOARD_HAS_@$(DEVID)
+@BDEF.OSVAL=static volatile @$BDEF.IOTYPE *const @$(BDEF.IONAME) = ((@$BDEF.IOTYPE *)@$[0x%08x](REGBASE));
+#
 #
 # A watchdog timer
 #
@@ -376,6 +376,10 @@
 			wb_cyc, (wb_stb)&&(@$(PREFIX)_sel), wb_we, wb_data,
 				@$(PREFIX)_ack, @$(PREFIX)_stall,
 				@$(PREFIX)_data, cpu_reset);
+@BDEFS.IONAME=_@$(PREFIX)
+@BDEFS.IOTYPE=unsigned
+@BDEFS.OSDEF=_BOARD_HAS_@$(DEVID)
+@BDEFS.OSVAL=static volatile @$BDEF.IOTYPE *const @$(BDEF.IONAME) = ((@$BDEF.IOTYPE *)@$[0x%08x](REGBASE));
 #
 #
 #

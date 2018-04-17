@@ -38,52 +38,23 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 //
-#include <stdint.h>
+#include "../zlib/zipcpu.h"
 #include "board.h"
-#include "zipcpu.h"
-#include "zipsys.h"
 
 #ifndef	NULL
 #define NULL	(void *)0
 #endif
 
-#define	PIC	*_buspic
-#define	TIMER	*_timer
-#define	HAVE_TIMER
+#define	PIC		(*_buspic)
+#define	TIMER		(*_bustimer)
 
-
-#ifndef	_BOARD_HAS_BUSCONSOLE
-#error "This test needs a bus console (UART) port named _uart"
-#else
-#define	_ZIP_HAS_WBUART
+#ifdef	_BOARD_HAS_ZIPSCOPE
+#define	HAVE_SCOPE
+#define	SCOPEc			_zipscope->s_ctrl
+#define	SCOPE_DELAY		4
+#define	TRIGGER_SCOPE_NOW	(WBSCOPE_TRIGGER|SCOPE_DELAY)
+#define	PREPARE_SCOPE		SCOPE_DELAY
 #endif
-
-#ifndef	PIC
-#warning "Place this definition into the ZipCPU autofpga config file"
-#define	PIC	_zip->z_pic
-#endif
-
-#define	UARTTX		_uart->u_tx
-#define	UART_CTRL	_uart->u_setup
-
-#ifdef	_HAVE_ZIPSYS_PERFORMANCE_COUNTERS
-#define	HAVE_COUNTER
-#define	COUNTER		_zip->z_m.ac_ck
-#elif	defined(_HAVE_ZIPSYS)
-#define	HAVE_TIMER
-#define	TIMER		_zip->z_tma
-#elif	!defined(TIMER)
-// If this isn't the ZipSystem, you'll need to tell it where/how to find the
-// timer
-#define	TIMER		SYSTIMER
-#error "DEFINE THIS TIMER FOR YOUR BOARD"
-#endif
-
-// #define	HAVE_SCOPE
-// #define	SCOPEc			_sys->io_scope[0].s_ctrl
-// #define	SCOPE_DELAY		4
-// #define	TRIGGER_SCOPE_NOW	(WBSCOPE_TRIGGER|SCOPE_DELAY)
-// #define	PREPARE_SCOPE		SCOPE_DELAY
 
 unsigned	zip_ucc(void);
 unsigned	zip_cc(void);
@@ -95,6 +66,7 @@ void	txchr(char v);
 void	txstr(const char *str);
 void	txhex(int num);
 void	tx4hex(int num);
+
 
 #ifdef	COUNTER
 #define	MARKSTART	start_time = COUNTER
@@ -934,7 +906,7 @@ asm("\t.text\n\t.global\tnowaitpipe_test\n"
 
 //bcmem_test
 void	bcmem_test(void);
-asm("\t.text\n.global\tbcmem_test\n"
+asm("\t.text\n\t.global\tbcmem_test\n"
 	"\t.type\tbcmem_test,@function\n"
 "bcmem_test:\n"
 	"\tSUB\t4,SP\n"
@@ -973,7 +945,7 @@ asm("\t.text\n.global\tbcmem_test\n"
 // operations without arguments are NOOP, BREAK, LOCK, and so we envision a
 // fourth instruction to create.
 void	ill_test(void);
-asm("\t.text\n.global\till_test\n"
+asm("\t.text\n\t.global\till_test\n"
 	"\t.type\till_test,@function\n"
 "ill_test:\n"	// 0.111_1.110_11......
 	"\t.int\t0x7ec00000\n"
@@ -982,7 +954,7 @@ asm("\t.text\n.global\till_test\n"
 // Are sim instructions considered valid?  Just hit the illegal instruction
 // so we can report the result
 void	sim_test(void);
-asm("\t.text\n.global\tsim_test\n"
+asm("\t.text\n\t.global\tsim_test\n"
 	"\t.type\tsim_test,@function\n"
 "sim_test:\n"	// 0.111_1.111_10......
 	"\t.int\t0x7f800000\n"
@@ -991,14 +963,14 @@ asm("\t.text\n.global\tsim_test\n"
 // Are CIS instructions considered valid?  Try two compare instructions to
 // see if they are built into our CPU.
 void	cis_test(void);
-asm("\t.text\n.global\tcis_test\n"
+asm("\t.text\n\t.global\tcis_test\n"
 	"\t.type\tcis_test,@function\n"
 "cis_test:\n"	// 1.000_0.011._1.101_0.000 ... 1.000_1.011._1.110_0.000
 	"\t.int\t0x83d08be0\n"
 	"\tJMP\tR0\n");
 
 void	cmpeq_test(void);
-asm("\t.text\n.global\tcmpeq_test\n"
+asm("\t.text\n\t.global\tcmpeq_test\n"
 	"\t.type\tcmpeq_test,@function\n"
 "cmpeq_test:\n"
 	"\tCMP\tR1,R2\n"
@@ -1007,7 +979,7 @@ asm("\t.text\n.global\tcmpeq_test\n"
 	"\tJMP\tR0\n");
 
 void	cmpneq_test(void);
-asm("\t.text\n.global\tcmpneq_test\n"
+asm("\t.text\n\t.global\tcmpneq_test\n"
 	"\t.type\tcmpneq_test,@function\n"
 "cmpneq_test:\n"
 	"\tLDI\t1,R4\n"
@@ -1029,7 +1001,7 @@ asm("\t.text\n.global\tcmpneq_test\n"
 // issues.
 //
 void	ccreg_test(void);
-asm("\t.text\n.global\tccreg_test\n"
+asm("\t.text\n\t.global\tccreg_test\n"
 	"\t.type\tccreg_test,@function\n"
 "ccreg_test:\n"
 	// First test: If we try to change the fixed bits, will they change
@@ -1093,21 +1065,20 @@ asm("\n\t.text\nidle_task:\n\tWAIT\n\tBRA\tidle_task\n");
 
 __attribute__((noinline))
 void	txchr(char v) {
-#ifdef	_ZIP_HAS_WBUART
-	while(_uart->u_fifo & 0x010000)
-		;
-	uint8_t c = v;
-	_uart->u_tx = (unsigned)c;
-#endif
+	if (zip_cc() & CC_GIE) {
+		if (PIC & BUSPIC_UARTTX)
+			PIC = BUSPIC_UARTTX;
+		while((PIC & BUSPIC_UARTTX)==0)
+			;
+	} else
+		wait(BUSPIC_UARTTX);
+	_uart->u_tx = v;
 }
 
 void	wait_for_uart_idle(void) {
-#ifdef	_ZIP_HAS_WBUART
-	while(_uart->u_tx & 0x100)	// While the transmitter is non-idle
+	PIC = BUSPIC_UARTTX;
+	while((PIC & BUSPIC_UARTTX)==0)
 		;
-#else
-#error "No uart defined"
-#endif
 }
 
 __attribute__((noinline))
@@ -1247,8 +1218,6 @@ void entry(void) {
 	SCOPEc = PREPARE_SCOPE;
 #endif
 
-	// UART_CTRL = 82;	// 1MBaud, given n 82.5MHz clock
-	// UART_CTRL = 705; // 115200 Baud, given n 81.25MHz clock
 	// *UART_CTRL = 8333; // 9600 Baud, 8-bit chars, no parity, one stop bit
 	// *UART_CTRL = 25; // 9600 Baud, 8-bit chars, no parity, one stop bit
 	//
@@ -1266,7 +1235,7 @@ void entry(void) {
 	if ((run_test(sim_test, user_stack_ptr))||(zip_ucc()&cc_fail))
 		test_fails(start_time, &testlist[tnum]);
 	else if (zip_ucc() & CC_ILL) {
-		txstr("Pass\r\n"); testlist[tnum++];	// 0
+		txstr("Pass\r\n"); testlist[tnum++] = 0; // 0
 	} else
 		txstr("Is this a simulator?\r\n");
 
@@ -1445,17 +1414,21 @@ void entry(void) {
 		test_fails(start_time, &testlist[tnum]);
 	txstr("Pass\r\n"); testlist[tnum++] = 0;	// #21
 
-	// MPY_TEST
-	testid("Multiply test"); MARKSTART;
-	if ((run_test(mpy_test, user_stack_ptr))||(zip_ucc()&CC_EXCEPTION))
-		test_fails(start_time, &testlist[tnum]);
-	txstr("Pass\r\n"); testlist[tnum++] = 0;	// #22
+	if ((zip_cc() & 0x40000000)==0) {
+		txstr("No multiply unit installed\r\n");
+	} else {
+		// MPY_TEST
+		testid("Multiply test"); MARKSTART;
+		if ((run_test(mpy_test, user_stack_ptr))||(zip_ucc()&CC_EXCEPTION))
+			test_fails(start_time, &testlist[tnum]);
+		txstr("Pass\r\n"); testlist[tnum++] = 0;	// #22
 
-	// MPYxHI_TEST
-	testid("Multiply HI-word test"); MARKSTART;
-	if ((run_test(mpyhi_test, user_stack_ptr))||(zip_ucc()&CC_EXCEPTION))
-		test_fails(start_time, &testlist[tnum]);
-	txstr("Pass\r\n"); testlist[tnum++] = 0;	// #23
+		// MPYxHI_TEST
+		testid("Multiply HI-word test"); MARKSTART;
+		if ((run_test(mpyhi_test, user_stack_ptr))||(zip_ucc()&CC_EXCEPTION))
+			test_fails(start_time, &testlist[tnum]);
+		txstr("Pass\r\n"); testlist[tnum++] = 0;	// #23
+	}
 
 	// DIV_TEST
 	testid("Divide test");

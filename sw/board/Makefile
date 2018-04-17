@@ -4,7 +4,8 @@
 ##
 ## Project:	TinyZip, a demonstration project for the TinyFPGA B2 board
 ##
-## Purpose:	
+## Purpose:	This file describes how to build the ZipCPU programs for this
+##		board.
 ##
 ## Creator:	Dan Gisselquist, Ph.D.
 ##		Gisselquist Technology, LLC
@@ -50,7 +51,6 @@ OBJDUMP := zip-objdump
 SUBMAKE:= $(MAKE) --no-print-directory -C
 #
 #
-TTTT    := tttt
 SOURCES := hello.c cputest.c
 HEADERS :=
 DUMPRTL := -fdump-rtl-all
@@ -58,11 +58,11 @@ DUMPTREE:= -fdump-tree-all
 LDSCRIPT:= board.ld
 LFLAGS  := -T $(LDSCRIPT) -L../zlib
 CFLAGS  := -O3 -I../zlib -I../../rtl
-LIBS    := -lc -lzbasic
+LIBS    := -lc -lztiny
 INSTALLD=/home/dan/work/rnd/zipcpu/sw/install
 NLIBD=$(INSTALLD)/cross-tools/zip/lib
 ZLIBD=../zlib
-LIB=$(ZLIBD)/libzbasic.a $(NLIBD)/libg.a $(NLIBD)/libc.a
+LIB=$(ZLIBD)/libztiny.a $(NLIBD)/libg.a $(NLIBD)/libc.a
 #
 # For source analysis, the following macros are defined:
 
@@ -86,11 +86,8 @@ $(OBJDIR)/%.txt: $(OBJDIR)/%.o
 # RAM instead.
 #
 $(OBJDIR)/cputest.o: cputest.c
-	$(CC) $(CFLAGS) -c -Wa,-nocis -fno-builtin $< -o $@
-$(OBJDIR)/cputestcis.o: cputest.c
+	$(mk-objdir)
 	$(CC) $(CFLAGS) -c -Wa,-cis -fno-builtin $< -o $@
-$(OBJDIR)/cputest.s: cputest.c
-	$(CC) $(CFLAGS) -S -Wa,-cis -fno-builtin $< -o $@
 
 cputest: $(OBJDIR)/cputest.o board.ld
 	$(CC) $(CFLAGS) $(LFLAGS) $< $(LIBS) -o $@
@@ -98,30 +95,9 @@ cputest: $(OBJDIR)/cputest.o board.ld
 
 $(OBJDIR)/hello.o: hello.c
 	$(CC) -O3 -c $< -o $@
-$(OBJDIR)/gettysburg.o: gettysburg.c
-	$(CC) -O3 -c $< -o $@
 
 hello: $(OBJDIR)/hello.o board.ld
 	$(CC) $(CFLAGS) $(LFLAGS) $< $(LIBS) -o $@
-
-.PHONY: iftttt
-ifeq (,$(wildcard tttt/))
-iftttt:
-else
-iftttt: 
-	$(SUBMAKE) tttt/src ARCH=zip CROSS=zip- zip-tttt
-endif
-
-.PHONY: tttt
-tttt:
-	@bash -c "if [ ! -e $(TTTT)/src/Makefile ]; then git submodule add https://github.com/ZipCPU/tttt; git submodule init; git submodule update; fi"
-	CROSS=zip- ARCH=zip $(SUBMAKE) tttt/src ARCH=zip CROSS=zip- zip-tttt
-
-
-#hellosim: hellosim.s
-#	$(AS) $< -o $(OBJDIR)/hellosim.o
-#	$(LD) -T boardram.ld $(OBJDIR)/hellosim.o -o $@
-
 
 define	mk-objdir
 	@bash -c "if [ ! -e $(OBJDIR) ]; then mkdir -p $(OBJDIR); fi"
