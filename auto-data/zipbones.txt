@@ -45,6 +45,7 @@
 @PREFIX=zip
 @ACCESS=INCLUDE_ZIPCPU
 @DBGBUS=hb
+@DBGPFX=zip_dbg
 @MASTER.TYPE=CPU
 @MASTER.BUS=zip
 @BUS.NAME=zip
@@ -90,9 +91,9 @@
 					zip_ack, zip_stall, zip_idata, zip_err,
 			bus_interrupt, zip_halted,
 			// Debug wishbone interface
-			(@$(DBGBUS)_cyc), ((@$(DBGBUS)_stb)&&(zip_dbg_sel)),@$(DBGBUS)_we,
+			(@$(DBGBUS)_cyc), ((@$(DBGBUS)_stb)&&(@$(DBGPFX)_sel)),@$(DBGBUS)_we,
 			@$(DBGBUS)_addr[0],
-			@$(DBGBUS)_data, zip_dbg_ack, zip_dbg_stall, zip_dbg_data,
+			@$(DBGBUS)_data, @$(DBGPFX)_ack, @$(DBGPFX)_stall, @$(DBGPFX)_data,
 			zip_debug);
 	assign	zip_trigger = zip_debug[0];
 @BDEF.INCLUDE=
@@ -162,7 +163,7 @@
 @SIM.CLRRESET=
 		m_core->cpu_reset = 0;
 @SIM.METHODS=
-
+#ifdef	@$(ACCESS)
 	void	loadelf(const char *elfname) {
 		ELFSECTION	**secpp, *secp;
 		uint32_t	entry;
@@ -303,6 +304,7 @@
 				m_core->cpu_upc);
 		} fflush(stdout);
 	}
+#endif
 
 @SIM.TICK=
 #ifdef	@$(ACCESS)
@@ -329,9 +331,10 @@
 #
 #
 @RTL.MAKE.GROUP=ZIPCPU
-@RTL.MAKE.FILES= zipcpu.v cpuops.v dblfetch.v memops.v idecode.v ziptimer.v
-		wbpriarbiter.v zipbones.v busdelay.v cpudefs.v icontrol.v div.v
-		wbdblpriarb.v
+@RTL.MAKE.FILES= zipcpu.v cpuops.v dblfetch.v prefetch.v memops.v
+		idecode.v ziptimer.v 
+		wbpriarbiter.v zipbones.v busdelay.v cpudefs.v icontrol.v
+		div.v mpyop.v wbdblpriarb.v
 @RTL.MAKE.SUBD= cpu
 #
 #
@@ -343,7 +346,7 @@
 @SLAVE.BUS=wb
 @NADDR=1
 @MAIN.INSERT=
-	ziptimer
+	ziptimer #(.VW(16))
 		@$(PREFIX)i(i_clk, i_reset, 1'b1,
 			wb_cyc, (wb_stb)&&(@$(PREFIX)_sel), wb_we, wb_data,
 				@$(PREFIX)_ack, @$(PREFIX)_stall,
@@ -371,7 +374,7 @@
 @REGS.0= 0 R_@$(DEVID) @$(DEVID)
 @NADDR=1
 @MAIN.INSERT=
-	ziptimer
+	ziptimer #(.VW(16), .RELOADABLE(0))
 		@$(PREFIX)i(i_clk, i_reset, 1'b1,
 			wb_cyc, (wb_stb)&&(@$(PREFIX)_sel), wb_we, wb_data,
 				@$(PREFIX)_ack, @$(PREFIX)_stall,
