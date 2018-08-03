@@ -41,7 +41,6 @@
 @$NBYTES=(1<<@$LGFLASHSZ)
 @NBYTES.FORMAT=0x%08x
 @ACCESS= FLASH_ACCESS
-@ERROR.WIRE=@$(PREFIX)_err
 @SLAVE.TYPE=MEMORY
 @SLAVE.BUS=wb
 @LD.PERM=rx
@@ -54,11 +53,13 @@
 	output	wire		o_dspi_sck;
 	inout	wire	[1:0]	io_dspi_dat;
 @TOP.DEFNS=
-	wire	[1:0]	dspi_bmod, w_dspi_sck;
+	wire	[1:0]	dspi_bmod;
+	wire		w_dspi_sck;
 	wire	[1:0]	dspi_dat;
+	wire	[1:0]	i_dspi_dat;
 @TOP.MAIN=
 		// Dual SPI flash
-		o_dspi_cs_n, w_dspi_sck, dspi_dat, io_dspi_dat, dspi_bmod
+		o_dspi_cs_n, w_dspi_sck, dspi_dat, i_dspi_dat, dspi_bmod
 @TOP.INSERT=
 	//
 	//
@@ -69,12 +70,25 @@
 	//	0?	Normal serial mode, one bit in one bit out
 	//	10	Dual SPI mode, going out
 	//	11	Dual SPI mode coming from the device (read mode)
-	assign io_dspi_dat = (!dspi_bmod[1])?({1'bz,dspi_dat[0]})
-				:((dspi_bmod[0])?(2'bzz):(dspi_dat[1:0]));
-	altoddr dspi_ddr_sck(
-		.outclock(s_clk),
-		.din({ w_dspi_sck[1], w_dspi_sck[0] }),
-		.pad_out(o_dspi_sck));
+	SB_IO #(.PULLUP(1'b0), .PIN_TYPE(6'b101001))
+		thedspi0 (.OUTPUT_ENABLE(dspi_bmod[1:0]!=2'b11),
+				.PACKAGE_PIN(io_dspi_dat[0]),
+				.D_OUT_0(dspi_dat[0]),
+				.D_IN_0(i_dspi_dat[0]));
+
+	SB_IO #(.PULLUP(1'b0), .PIN_TYPE(6'b101001))
+		thedspi1 (.OUTPUT_ENABLE(dspi_bmod[1:0]==2'b10),
+				.PACKAGE_PIN(io_dspi_dat[1]),
+				.D_OUT_0(dspi_dat[1]),
+				.D_IN_0(i_dspi_dat[1]));
+
+	SB_IO #(.PIN_TYPE(6'b0100_01))
+		thedspick (.OUTPUT_ENABLE(1'b1),
+				.OUTPUT_CLK(s_clk),
+				.CLOCK_ENABLE(1'b1),
+				.D_OUT_0(!w_spi_sck),
+				.D_OUT_1(1'b1),
+				.PACKAGE_PIN(o_dspi_sck));
 
 @MAIN.PORTLIST=
 		// The QSPI Flash
@@ -82,20 +96,18 @@
 @MAIN.IODECL=
 	// The QSPI flash
 	output	wire		o_dspi_cs_n;
-	output	wire	[1:0]	o_dspi_sck;
+	output	wire		o_dspi_sck;
 	output	wire	[1:0]	o_dspi_dat;
 	input	wire	[1:0]	i_dspi_dat;
 	output	wire	[1:0]	o_dspi_mod;
 @MAIN.INSERT=
 	dualflexpress @$(PREFIX)i(i_clk, i_reset,
 			(wb_cyc), (wb_stb)&&(@$(PREFIX)_sel),
+				((wb_stb)&&(flash_cfg_sel))
 				wb_addr[(@$LGFLASHSZ-3):0],
 			@$(PREFIX)_ack, @$(PREFIX)_stall, @$(PREFIX)_data,
 			o_dspi_sck, o_dspi_cs_n, o_dspi_mod, o_dspi_dat,
-				i_dspi_dat,
-			((wb_stb)&&(flash_cfg_sel)), r_flash_cfg_data,
-			 	w_flash_cfg_data,
-			@$(PREFIX)_err);
+				i_dspi_dat);
 @MAIN.ALT=
 	assign	o_dspi_sck  = 1'b0;
 	assign	o_dspi_cs_n = 1'b1;

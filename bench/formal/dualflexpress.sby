@@ -1,0 +1,17 @@
+[options]
+mode prove
+depth 40
+
+[engines]
+smtbmc
+
+[script]
+# read -define VERIFIC
+read -define FORMAL
+read -sv fwb_slave.v
+read -sv dualflexpress.v
+prep -top dualflexpress
+
+[files]
+fwb_slave.v
+../../rtl/dualflexpress.v
