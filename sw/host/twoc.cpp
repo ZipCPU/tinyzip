@@ -1,18 +1,20 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Filename:	bootloader.h
+// Filename: 	twoc.cpp
 //
-// Project:	TinyZip, a demonstration project for the TinyFPGA B2 board
+// Project:	ICO Zip, iCE40 ZipCPU demonsrtation project
 //
-// Purpose:	
-//
+// Purpose:	Some various two's complement related C++ helper routines.
+//		Specifically, these help extract signed numbers from
+//		packed bitfields, while guaranteeing that the upper bits
+//		are properly sign extended (or not) as desired.
 //
 // Creator:	Dan Gisselquist, Ph.D.
 //		Gisselquist Technology, LLC
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2018, Gisselquist Technology, LLC
+// Copyright (C) 2015, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -36,35 +38,20 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 //
-#ifndef	BOOTLOADER_H
-#define	BOOTLOADER_H
+#include "twoc.h"
 
-extern	int	_top_of_heap[1], _top_of_stack[1];
-extern	int	_boot_address[1];
+long	sbits(const long val, const int bits) {
+	long	r;
 
-#ifdef	_BOARD_HAS_BKRAM
-#ifdef	_BOARD_HAS_SDRAM
-extern	int	_kernel_image_start[1], _kernel_image_end[1],
-#define	_BOARD_HAS_KERNEL_SPACE
-#endif
-#endif
+	r = val & ((1l<<bits)-1);
+	if (r & (1l << (bits-1)))
+		r |= (-1l << bits);
+	return r;
+}
 
-
-#ifndef	_BOARD_HAS_KERNEL_SPACE
-#ifndef	_ram
-
-#ifdef	_BOARD_HAS_BKRAM
-#define	_ram	_bkram
-#elif	defined(_BOARD_HAS_SDRAM)
-#define	_ram	_sdram
-#endif
-
-#endif	// _ram
-#endif	// _BOARD_HAS_KERNEL_SPACE
+unsigned long	ubits(const long val, const int bits) {
+	unsigned long r = val & ((1l<<bits)-1);
+	return r;
+}
 
 
-
-extern	int	_ram_image_start[1], _ram_image_end[1],
-		_bss_image_end[1];
-
-#endif

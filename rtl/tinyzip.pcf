@@ -18,6 +18,11 @@ set_io	o_led		B3
 # set_io	o_mosi		G6
 # set_io	i_miso		H7
 #
+set_io	o_dspi_cs_n		F7
+set_io	o_dspi_sck		G7
+set_io	io_dspi_dat[0]		G6
+set_io	io_dspi_dat[1]		H7
+#
 set_io i_gpio[0]	A2	# 221
 set_io i_gpio[1]	A1	# 224
 set_io i_gpio[2]	B1	# 3A

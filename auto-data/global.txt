@@ -35,18 +35,13 @@
 ################################################################################
 ##
 ##
-@LEGAL=../auto-data/legalgen.txt
+@LEGAL=legalgen.txt
 @PROJECT=TinyZip, a demonstration project for the TinyFPGA B2 board
-# @XDC.FILE=nexysv.xdc
-# @XDC.FILE=arty.xdc
+@PCF.FILE=tinyzip.pcf
 #
-# @KEYS.TRIMLIST is a list of all string keys that need to be trimmed (have
-# spaces removed from either side) before being used
-# @KEYS.INTLIST is a list of all things that need to be converted to integers
 @KEYS.INTLIST= BUS_ADDRESS_WIDTH NADDR NPIC NSCOPES PIC.MAX REGS.N ID
 @DEFAULT.BUS=wb
-# @$RESET_ADDRESS=@$flash.BASE
-@$RESET_ADDRESS=@$bkram.BASE
+@$RESET_ADDRESS=@$flash.BASE+131072
 @RESET_ADDRESS.FORMAT=32'h%08x
 @VERILATOR_PREFIX=v
 @REGDEFS.H.INSERT=
@@ -78,12 +73,12 @@ unsigned	addrdecode(const char *v) {
 			if (strcasecmp(v, bregs[i].m_name)==0)
 				return bregs[i].m_addr;
 #ifdef	R_ZIPCTRL
-		if (strcasecmp(v, "CPU")==0)
-			return R_ZIPCTRL;
+	} if (strcasecmp(v, "CPU")==0) {
+		return R_ZIPCTRL;
 #endif	// R_ZIPCTRL
 #ifdef	R_ZIPDATA
-		if (strcasecmp(v, "CPUD")==0)
-			return R_ZIPDATA;
+	} else if (strcasecmp(v, "CPUD")==0) {
+		return R_ZIPDATA;
 #endif	// R_ZIPDATA
 		fprintf(stderr, "Unknown register: %s\n", v);
 		exit(-2);

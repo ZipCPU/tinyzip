@@ -35,6 +35,7 @@
 `default_nettype	none
 //
 module	iscachable(i_addr, o_cachable);
+	parameter	ADDRESS_WIDTH=30;
 	localparam	AW = ADDRESS_WIDTH; // Just for ease of notation below
 	parameter [AW-1:0] 	SDRAM_ADDR  = 0, SDRAM_MASK = 0;
 	parameter [AW-1:0] 	BKRAM_ADDR = 30'h4000000,

@@ -129,7 +129,7 @@ autodata: check-autofpga
 	$(call copyif-changed,$(AUTOGEN)/regdefs.cpp,sw/host/regdefs.cpp)
 	$(call copyif-changed,$(AUTOGEN)/board.h,sw/zlib/board.h)
 	$(call copyif-changed,$(AUTOGEN)/board.ld,$(ZIPSW)/board.ld)
-	$(call copyif-changed,$(AUTOGEN)/rtl.make.inc,$(SOCDIR)/make.inc)
+	$(call copyif-changed,$(AUTOGEN)/rtl.make.inc,$(SOCDIR)/auto.mk)
 	$(call copyif-changed,$(AUTOGEN)/testb.h,$(SIMDIR)/testb.h)
 	$(call copyif-changed,$(AUTOGEN)/main_tb.cpp,$(SIMDIR)/main_tb.cpp)
 
@@ -214,7 +214,6 @@ endef
 clean:
 	+$(SUBMAKE) auto-data     clean
 	+$(SUBMAKE) $(SIMDIR)     clean
-	+$(SUBMAKE) rtl/simple    clean
 	+$(SUBMAKE) $(SOCDIR)     clean
 	+$(SUBMAKE) sw/zlib       clean
 	+$(SUBMAKE) $(ZIPSW)      clean

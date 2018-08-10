@@ -36,6 +36,7 @@
 ##
 ##
 @PREFIX=buspic
+@DEVID=BUSPIC
 @NADDR=1
 @ACCESS=BUSPIC_ACCESS
 @SLAVE.TYPE=SINGLE
@@ -43,8 +44,10 @@
 @DEVID=BUSPIC
 @PIC.BUS= bus_int_vector
 @PIC.MAX= 15
-@MAIN.DEFNS=
-	wire	bus_interrupt;
+@INT.BUS.WIRE= bus_interrupt
+@INT.BUS.PIC=
+@BDEF.DEFN=
+#define BUSPIC(X) (1<<X)
 @MAIN.INSERT=
 	//
 	// The BUS Interrupt controller

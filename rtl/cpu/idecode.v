@@ -61,7 +61,9 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 		o_valid,
 		o_phase, o_illegal,
 		o_pc,
-		o_dcdR, o_dcdA, o_dcdB, o_I, o_zI,
+		o_dcdR, o_dcdA, o_dcdB,
+		o_preA, o_preB,
+		o_I, o_zI,
 		o_cond, o_wF,
 		o_op, o_ALU, o_M, o_DV, o_FP, o_break, o_lock,
 		o_wR, o_rA, o_rB,
@@ -72,13 +74,14 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 	parameter		ADDRESS_WIDTH=24;
 	parameter	[0:0]	OPT_MPY = 1'b1;
 	parameter	[0:0]	OPT_EARLY_BRANCHING = 1'b1;
-	parameter	[0:0]	OPT_PIPELINED = 1'b1;
+	parameter	[0:0]	OPT_PIPELINED = 1'b0;
 	parameter	[0:0]	OPT_DIVIDE = (OPT_PIPELINED);
 	parameter	[0:0]	OPT_FPU    = 1'b0;
 	parameter	[0:0]	OPT_CIS    = 1'b1;
 	parameter	[0:0]	OPT_LOCK   = (OPT_PIPELINED);
 	parameter	[0:0]	OPT_OPIPE  = (OPT_PIPELINED);
 	parameter	[0:0]	OPT_SIM    = 1'b0;
+	parameter	[0:0]	OPT_NO_USERMODE = 1'b0;
 	localparam		AW = ADDRESS_WIDTH;
 	//
 	input	wire		i_clk, i_reset, i_ce, i_stalled;
@@ -90,6 +93,7 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 	output	reg		o_illegal;
 	output	reg	[(AW+1):0]	o_pc;
 	output	reg	[6:0]	o_dcdR, o_dcdA, o_dcdB;
+	output	wire	[4:0]	o_preA, o_preB;
 	output	wire	[31:0]	o_I;
 	output	reg		o_zI;
 	output	reg	[3:0]	o_cond;
@@ -226,12 +230,12 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 	// moves in iword[18] but only for the supervisor, and the other
 	// four bits encoded in the instruction.
 	//
-	assign	w_dcdR = { ((!iword[`CISBIT])&&(w_mov)&&(!i_gie))?iword[`IMMSEL]:i_gie,
+	assign	w_dcdR = { ((!iword[`CISBIT])&&(!OPT_NO_USERMODE)&&(w_mov)&&(!i_gie))?iword[`IMMSEL]:i_gie,
 				iword[30:27] };
 
 	// dcdB - What register is used in the opB?
 	//
-	assign w_dcdB[4] = ((!iword[`CISBIT])&&(w_mov)&&(!i_gie))?iword[13]:i_gie;
+	assign w_dcdB[4] = ((!iword[`CISBIT])&&(w_mov)&&(!OPT_NO_USERMODE)&&(!i_gie))?iword[13]:i_gie;
 	assign w_dcdB[3:0]= (iword[`CISBIT])
 				? (((!iword[`CISIMMSEL])&&(iword[26:25]==2'b10))
 					? `CPU_SP_REG : iword[22:19])
@@ -510,6 +514,9 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 				o_sim_immv <= 0;
 			end
 		end
+
+	assign	o_preA = w_dcdA;
+	assign	o_preB = w_dcdB;
 
 	generate if (OPT_EARLY_BRANCHING)
 	begin : GEN_EARLY_BRANCH_LOGIC

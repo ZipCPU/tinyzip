@@ -1,1 +1,5 @@
 cputest
+*.txt
+*.s
+hello
+cputest

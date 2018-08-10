@@ -19,7 +19,7 @@
 //	interface makes it possible to change only the bit of interest, without
 //	needing to capture and maintain the prior bit values--something that
 //	might be difficult from a interrupt context within a CPU.
-//	
+//
 //	Unlike other controllers, this controller offers no capability to
 //	change input/output direction, or to implement pull-up or pull-down
 //	resistors.  It simply changes and adjusts the values going out the

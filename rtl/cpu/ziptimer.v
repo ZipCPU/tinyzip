@@ -123,7 +123,6 @@ module	ziptimer(i_clk, i_reset, i_ce,
 
 		// If setting auto-reload mode, and the value to other
 		// than zero, set the auto-reload value
-		initial	r_reload_value = 0;
 		always @(posedge i_clk)
 		if (wb_write)
 			r_reload_value <= i_wb_data[(VW-1):0];
@@ -191,6 +190,6 @@ module	ziptimer(i_clk, i_reset, i_ce,
 	// verilator lint_on  UNUSED
 
 `ifdef	FORMAL
-// The formal proof of this component is maintained elsewhere
+// The formal properties for this module are maintained elsewhere
 `endif
 endmodule

@@ -84,15 +84,11 @@ main_tb: $(MAINOBJS) $(SIMOBJECTS) $(VOBJS) $(VOBJDR)/Vmain__ALL.a
 	$(CXX) $(INCS) $(VDEFS) $^ $(VOBJDR)/Vmain__ALL.a -lelf -o $@
 
 #
-# Build a 64M SD-card image file that we can use for testing
-sdcard.img:
-	dd if=/dev/zero of=$@ bs=512 count=131072
-	mkfs.fat $@
-#
 # The "test" target, running hello world
 #
 .PHONY: test
 test:
+	./main_tb -d ../../sw/board/cputest
 	./main_tb -d ../../sw/board/hello
 
 #

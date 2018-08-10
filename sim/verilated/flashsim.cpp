@@ -1,6 +1,5 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-//
 // Filename: 	flashsim.cpp
 //
 // Project:	Wishbone Controlled Quad SPI Flash Controller
@@ -201,6 +200,11 @@ int	FLASHSIM::operator()(const int csn, const int sck, const int dat) {
 				m_mode = FM_SPI;
 			else
 				m_state = QSPIF_QUAD_READ_IDLE;
+		} else if (m_state == QSPIF_DUAL_READ) {
+			if ((m_mode_byte & 0x0f0)!=0x0a0)
+				m_mode = FM_SPI;
+			else
+				m_state = QSPIF_DUAL_READ_IDLE;
 		} else if (m_state == QSPIF_DUAL_READ_IDLE) {
 		} else if (m_state == QSPIF_QUAD_READ_IDLE) {
 		}
@@ -226,6 +230,7 @@ int	FLASHSIM::operator()(const int csn, const int sck, const int dat) {
 		m_ireg   = (m_ireg << 4) | (dat & 0x0f);
 		m_count += 4;
 		m_oreg <<= 4;
+assert(0 && "QSPI mode not supported in this design\n");
 	} else if (m_mode == FM_DSPI) {
 		m_ireg   = (m_ireg << 2) | (dat & 0x03);
 		m_count += 2;
@@ -235,7 +240,6 @@ int	FLASHSIM::operator()(const int csn, const int sck, const int dat) {
 		m_count++;
 		m_oreg <<= 1;
 	}
-
 
 	// printf("PROCESS, COUNT = %d, IREG = %02x\n", m_count, m_ireg);
 	if (m_state == QSPIF_QUAD_READ_IDLE) {
@@ -258,6 +262,7 @@ int	FLASHSIM::operator()(const int csn, const int sck, const int dat) {
 		} m_oreg = 0;
 	} else if (m_count == 8) {
 		QOREG(0x0a5);
+		// printf("SFLASH-CMD = %02x\n", m_ireg & 0x0ff);
 		// Figure out what command we've been given
 		if (m_debug) printf("SPI FLASH CMD %02x\n", m_ireg&0x0ff);
 		switch(m_ireg & 0x0ff) {
@@ -280,8 +285,8 @@ int	FLASHSIM::operator()(const int csn, const int sck, const int dat) {
 		case 0x03: // Read data bytes
 			// Our clock won't support this command, so go
 			// to an invalid state
-			if (m_debug) printf("QSPI INVALID: This sim does not support slow reading\n");
-			m_state = QSPIF_INVALID;
+			if (m_debug) printf("QSPI: SLOW-READ (single-bit)\n");
+			m_state = QSPIF_SLOW_READ;
 			break;
 		case 0x04: // Write disable
 			m_state = QSPIF_IDLE;
@@ -368,6 +373,11 @@ int	FLASHSIM::operator()(const int csn, const int sck, const int dat) {
 			m_state = QSPIF_QUAD_READ_CMD;
 			m_mode = FM_QSPI;
 			break;
+		case 0x000:
+		case 0x0ff:
+			m_state = QSPIF_IDLE;
+			m_mode = FM_SPI;
+			break;
 		default:
 			printf("QSPI: UNRECOGNIZED SPI FLASH CMD: %02x\n", m_ireg&0x0ff);
 			m_state = QSPIF_INVALID;
@@ -378,7 +388,7 @@ int	FLASHSIM::operator()(const int csn, const int sck, const int dat) {
 		QOREG(0);
 		switch(m_state) {
 		case QSPIF_IDLE:
-			printf("TOO MANY CLOCKS, SPIF in IDLE\n");
+			printf("TOO MANY CLOCKS from QUAD-IDLE, SPIF in IDLE\n");
 			break;
 		case QSPIF_WRSR:
 			if (m_count == 16) {
@@ -422,6 +432,16 @@ int	FLASHSIM::operator()(const int csn, const int sck, const int dat) {
 			if (m_debug) printf("Read CREG = %02x\n", m_creg);
 			QOREG(m_creg);
 			break;
+		case QSPIF_SLOW_READ:
+			if (m_count == 32) {
+				m_addr = m_ireg & m_memmask;
+				if (m_debug) printf("READ, ADDR = %08x\n", m_addr);
+				assert((m_addr & (~(m_memmask)))==0);
+				QOREG(m_mem[m_addr++]);
+			} else if ((m_count >= 40)&&(0 == (m_sreg&0x01))) {
+				QOREG(m_mem[m_addr++]);
+			} else m_oreg = 0;
+			break;
 		case QSPIF_FAST_READ:
 			if (m_count == 32) {
 				m_addr = m_ireg & m_memmask;
@@ -443,10 +463,12 @@ int	FLASHSIM::operator()(const int csn, const int sck, const int dat) {
 				m_addr = m_ireg & m_memmask;
 				if (m_debug) printf("DSPI: DUAL READ, ADDR = %06x\n", m_addr);
 				assert((m_addr & (~(m_memmask)))==0);
-			} else if (m_count == 32+24) {
-				m_mode_byte = (m_ireg>>16) & 0x0ff;
+
+			} else if ((m_count == 32+8)&&(0 == (m_sreg&0x01))) {
+				m_mode_byte = (m_ireg) & 0x0ff;
 				if (m_debug) printf("DSPI: MODE BYTE = %02x\n", m_mode_byte);
-			} else if ((m_count > 32+24)&&(0 == (m_sreg&0x01))) {
+				QOREG(m_mem[m_addr++]);
+			} else if ((m_count > 32+8)&&(0 == (m_sreg&0x01))) {
 				QOREG(m_mem[m_addr++]);
 				if (m_debug) printf("QSPIF[%08x]/DR = %02x\n",
 					m_addr-1, m_oreg);
@@ -474,10 +496,9 @@ int	FLASHSIM::operator()(const int csn, const int sck, const int dat) {
 			if (m_count == 32) {
 				m_mode_byte = (m_ireg & 0x0ff);
 				if (m_debug) printf("DSPI/DR: MODE BYTE = %02x\n", m_mode_byte);
-			} else if ((m_count >= 32+16)&&(0 == (m_sreg&0x01))) {
-				QOREG(m_mem[m_addr++]);
-				if (m_debug) printf("DSPIF[%08x]/DR = %02x\n", m_addr-1, m_oreg & 0x0ff);
-			} else m_oreg = 0;
+			}
+			QOREG(m_mem[m_addr++]);
+			if (m_debug) printf("DSPIF[%08x]/DR = %02x\n", m_addr-1, m_oreg & 0x0ff);
 			break;
 		case QSPIF_QUAD_READ:
 			if (m_count == 32) {

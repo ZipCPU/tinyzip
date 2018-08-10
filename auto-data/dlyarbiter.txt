@@ -42,7 +42,6 @@
 @SLAVE.TYPE=BUS
 @SLAVE.BUS.NAME=zip
 @SLAVE.BUS.WIDTH=32
-@SLAVE.CLOCK=clk
 @BUS.NAME=wb
 ##
 @PREFIX=hb_dwb
@@ -82,7 +81,7 @@
 		@$(ZIPB)_cyc, @$(ZIPB)_stb, @$(ZIPB)_we, @$(ZIPB)_addr, @$(ZIPB)_data, @$(ZIPB)_sel,
 			@$(ZIPB)_dwb_ack, @$(ZIPB)_dwb_stall, @$(ZIPB)_dwb_err,
 		// The UART interface master
-		(@$(SLAVE.BUS.NAME)_cyc)&&(@$(PREFIX)_sel),
+		(@$(SLAVE.BUS.NAME)_cyc),
 			(@$(SLAVE.BUS.NAME)_stb)&&(@$(PREFIX)_sel),
 			@$(SLAVE.BUS.NAME)_we,
 			@$(SLAVE.BUS.NAME)_addr[(@$(AWID)-1):0],

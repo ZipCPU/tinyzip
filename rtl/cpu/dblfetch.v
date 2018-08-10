@@ -163,7 +163,6 @@ module	dblfetch(i_clk, i_reset, i_new_pc, i_clear_cache,
 		else if (i_stall_n)
 			o_valid <= cache_valid;
 
-	initial	o_insn = {(32){1'b1}};
 	always @(posedge i_clk)
 	if ((!o_valid)||(i_stall_n))
 	begin
@@ -173,12 +172,12 @@ module	dblfetch(i_clk, i_reset, i_new_pc, i_clear_cache,
 			o_insn <= i_wb_data;
 	end
 
-	initial	o_pc = 0;
+	initial o_pc[1:0] = 2'b00;
 	always @(posedge i_clk)
-		if (i_new_pc)
-			o_pc <= i_pc;
-		else if ((o_valid)&&(i_stall_n))
-			o_pc[AW+1:2] <= o_pc[AW+1:2] + 1'b1;
+	if (i_new_pc)
+		o_pc <= i_pc;
+	else if ((o_valid)&&(i_stall_n))
+		o_pc[AW+1:2] <= o_pc[AW+1:2] + 1'b1;
 
 	initial	o_illegal = 1'b0;
 	always @(posedge i_clk)
@@ -221,60 +220,7 @@ module	dblfetch(i_clk, i_reset, i_new_pc, i_clear_cache,
 		cache_illegal <= 1'b0;
 	else if ((o_wb_cyc)&&(i_wb_err)&&(o_valid)&&(!i_stall_n))
 		cache_illegal <= 1'b1;
-
-//
-// Some of these properties can be done in yosys-smtbmc, *or* Verilator
-//
-// Ver1lator is different from yosys, however, in that Verilator doesn't support
-// the $past() directive.  Further, any `assume`'s turn into `assert()`s
-// within Verilator.  We can use this to help prove that the properties
-// of interest truly hold, and that any contracts we create or assumptions we
-// make truly hold in practice (i.e. in simulation).
-//
 `ifdef	FORMAL
-`define	VERILATOR_FORMAL
-`else
-`ifdef	VERILATOR
-//
-// Define VERILATOR_FORMAL here to have Verilator check your formal properties
-// during simulation.  assert() and assume() statements will both have the
-// same effect within VERILATOR of causing your simulation to suddenly end.
-//
-// I have this property commented because it only works on the newest versions
-// of Verilator (3.9 something and later), and I tend to still use Verilator
-// 3.874.
-//
-// `define	VERILATOR_FORMAL
-`endif
-`endif
-
-`ifdef	VERILATOR_FORMAL
-	// Keep track of a flag telling us whether or not $past()
-	// will return valid results
- 	reg	f_past_valid;
-	initial	f_past_valid = 1'b0;
-	always @(posedge i_clk)
-		f_past_valid = 1'b1;
-
-	// Keep track of some alternatives to $past that can still be used
-	// in a VERILATOR environment
-	reg	f_past_reset, f_past_clear_cache, f_past_o_valid,
-		f_past_stall_n;
-
-	initial	f_past_reset = 1'b1;
-	initial	f_past_clear_cache = 1'b0;
-	initial	f_past_o_valid = 1'b0;
-	initial	f_past_stall_n = 1'b1;
-	always @(posedge i_clk)
-	begin
-		f_past_reset       <= i_reset;
-		f_past_clear_cache <= i_clear_cache;
-		f_past_o_valid     <= o_valid;
-		f_past_stall_n     <= i_stall_n;
-	end
-`endif
-
-`ifdef	FORMAL
-// The formal properties for this module are maintained elsewhere
+// The formal properties for this design are maintained elsewhere
 `endif	// FORMAL
 endmodule

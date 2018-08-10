@@ -87,10 +87,10 @@ $(OBJDIR)/%.txt: $(OBJDIR)/%.o
 #
 $(OBJDIR)/cputest.o: cputest.c
 	$(mk-objdir)
-	$(CC) $(CFLAGS) -c -Wa,-cis -fno-builtin $< -o $@
+	$(CC) $(CFLAGS) -c -Wa,-cis -fno-builtin -nostdlib $< -o $@
 
-cputest: $(OBJDIR)/cputest.o board.ld
-	$(CC) $(CFLAGS) $(LFLAGS) $< $(LIBS) -o $@
+cputest: $(OBJDIR)/cputest.o boardram.ld
+	$(CC) $(CFLAGS) -T boardflash.ld -fno-builtin -nostdlib $< -o $@
 
 
 $(OBJDIR)/hello.o: hello.c

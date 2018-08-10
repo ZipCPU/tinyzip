@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Filename: 	qspiflashsim.h
+// Filename: 	flashsim.h
 //
 // Project:	Wishbone Controlled Quad SPI Flash Controller
 //
@@ -54,6 +54,7 @@ class	FLASHSIM {
 		QSPIF_CLSR,
 		QSPIF_RDID,
 		QSPIF_RELEASE,
+		QSPIF_SLOW_READ,
 		QSPIF_FAST_READ,
 		QSPIF_QUAD_READ_CMD,
 		QSPIF_QUAD_READ,
@@ -97,7 +98,7 @@ public:
 	void	debug(const bool dbg) { m_debug = dbg; }
 	bool	debug(void) const { return m_debug; }
 	unsigned operator[](const int index) {
-		unsigned char	*cptr = (unsigned char *)&m_mem[index];
+		unsigned char	*cptr = (unsigned char *)&m_mem[index<<2];
 		unsigned	v;
 		v = (*cptr++);
 		v = (v<<8)|(*cptr++);
@@ -106,7 +107,7 @@ public:
 
 		return v; }
 	void set(const unsigned addr, const unsigned val) {
-		unsigned char	*cptr = (unsigned char *)&m_mem[addr];
+		unsigned char	*cptr = (unsigned char *)&m_mem[addr<<2];
 		*cptr++ = (val>>24);
 		*cptr++ = (val>>16);
 		*cptr++ = (val>> 8);

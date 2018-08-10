@@ -281,13 +281,6 @@ module	memops(i_clk, i_reset, i_stb, i_lock,
 
 	end endgenerate
 
-`ifdef	VERILATOR
-	always @(posedge i_clk)
-	if ((r_wb_cyc_gbl)||(r_wb_cyc_lcl))
-		assert(!i_stb);
-`endif
-
-
 	// Make verilator happy
 	// verilator lint_off UNUSED
 	generate if (AW < 22)
@@ -303,4 +296,3 @@ module	memops(i_clk, i_reset, i_stb, i_lock,
 // The formal properties for this module are maintained elsewhere
 `endif
 endmodule
-

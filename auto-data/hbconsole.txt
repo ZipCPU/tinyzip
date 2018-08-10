@@ -79,7 +79,6 @@
 	// Definitions for the WB-UART converter.  We really only need one
 	// (more) non-bus wire--one to use to select if we are interacting
 	// with the ZipCPU or not.
-	wire	[0:0]	wbubus_dbg;
 `ifndef	INCLUDE_ZIPCPU
 	//
 	// The bus-console depends upon the zip_dbg wires.  If there is no
@@ -88,6 +87,7 @@
 	wire		zip_dbg_ack, zip_dbg_stall;
 	wire	[31:0]	zip_dbg_data;
 `endif
+	wire	[31:0]	console_dbg;
 @$ZIP_ADDRESS_BIT=@$BUS_ADDRESS_WIDTH-1
 @$ZIP_ADDRESS=(1<<(@$.ZIP_ADDRESS_BIT+2))
 @ZIP_ADDRESS.FORMAT= 0x%08x
@@ -122,6 +122,7 @@
 			//
 			w_console_tx_stb, w_console_tx_data, w_console_busy,
 			w_console_rx_stb, w_console_rx_data);
+	assign	@$(PREFIX)_sel = 4'hf;
 	assign	@$(PREFIX)_addr= @$(PREFIX)_tmp_addr[(@$BUS_ADDRESS_WIDTH-1):0];
 @REGDEFS.H.DEFNS=
 #define	R_ZIPCTRL	@$.ZIP_ADDRESS
@@ -154,10 +155,10 @@
 @INT.UARTTX.WIRE=uarttx_int
 @INT.UARTRXF.WIRE=uartrxf_int
 @INT.UARTTXF.WIRE=uarttxf_int
-@INT.UARTRX.PIC=buspic
-@INT.UARTTX.PIC=buspic
-@INT.UARTRXF.PIC=buspic
-@INT.UARTTXF.PIC=buspic
+@INT.UARTRX.PIC=
+@INT.UARTTX.PIC=
+@INT.UARTRXF.PIC= buspic
+@INT.UARTTXF.PIC= buspic
 @MAIN.DEFNS=
 	// Console definitions
 	wire	w_console_rx_stb, w_console_tx_stb, w_console_busy;
@@ -169,7 +170,8 @@
  			@$(PREFIX)_ack, @$(PREFIX)_stall, @$(PREFIX)_data,
 			w_console_tx_stb, w_console_tx_data, w_console_busy,
 			w_console_rx_stb, w_console_rx_data,
-			uartrx_int, uarttx_int, uartrxf_int, uarttxf_int);
+			uartrx_int, uarttx_int, uartrxf_int, uarttxf_int,
+			console_dbg);
 @MAIN.ALT=
 	assign	w_console_tx_stb  = 1'b0;
 	assign	w_console_tx_data = 7'h7f;

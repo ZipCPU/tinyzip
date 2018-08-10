@@ -82,9 +82,13 @@ module	dualflexpress(i_clk, i_reset,
 		i_wb_cyc, i_wb_stb, i_cfg_stb, i_wb_we, i_wb_addr, i_wb_data,
 			o_wb_ack, o_wb_stall, o_wb_data,
 		o_dspi_sck, o_dspi_cs_n, o_dspi_mod, o_dspi_dat, i_dspi_dat);
-	parameter [0:0]	OPT_FLASH_PIPELINE = 1'b1;
+	parameter	LGFLASHSZ=24;
+	parameter [0:0]	OPT_FLASH_PIPELINE = 1'b0;
+	parameter [0:0]	OPT_CFG = 1'b0;
+// parameter [0:0]	OPT_STARTUP = 1'b1;
+`define	OPT_STARTUP
 	//
-	localparam	AW=24-2;
+	localparam	AW=LGFLASHSZ-2;
 	localparam	DW=32;
 	//
 	input	wire			i_clk, i_reset;
@@ -110,8 +114,8 @@ module	dualflexpress(i_clk, i_reset,
 		bus_read, pipe_req;
 	//
 	assign	bus_read  = (i_wb_stb)&&(!o_wb_stall)&&(!i_wb_we)&&(!cfg_user_mode);
-	assign	cfg_user  = ((i_cfg_stb)&&(!o_wb_stall)&&(i_wb_we)
-						&&(i_wb_data[`USER_MODE]));
+	assign	cfg_user  = (OPT_CFG)&&(i_cfg_stb)&&(!o_wb_stall)&&(i_wb_we)
+						&&(i_wb_data[`USER_MODE]);
 	assign	cfg_write = (cfg_user)&&(!i_wb_data[`USER_CS_n]);
 	assign	cfg_hs_write = (cfg_write)&&(i_wb_data[`SPEED_BIT])
 					&&(i_wb_data[`DIR_BIT]);
@@ -131,88 +135,122 @@ module	dualflexpress(i_clk, i_reset,
 	reg	[1:0]	m_mod;
 	reg		m_cs_n;
 	reg		m_clk;
-	reg	[31:0]	m_data;
+	reg	[40:0]	m_data;
 	wire	[1:0]	m_dat;
 
-	initial	maintenance = 1'b1;
-	initial	m_counter   = 0;
-	initial	m_state     = 2'b00;
-	initial	m_cs_n      = 1'b1;
-	initial	m_clk       = 1'b0;
-	always @(posedge i_clk)
-	if (i_reset)
-	begin
-		maintenance <= 1'b1;
-		m_counter   <= 0;
-		m_state     <= 2'b00;
-		m_cs_n <= 1'b1;
-		m_clk  <= 1'b0;
-		m_data <= 32'hff_ff_ff_ff;
-		m_mod  <= 2'b00; // Normal SPI mode
-	end else begin
-		if (maintenance)
-			m_counter <= m_counter + 1'b1;
-		m_mod <= `NORMAL_SPI; // SPI mode always for maintenance
-		case(m_state)
-		2'b00: begin
-			// Step one: the device may have just been placed into
-			// it's power down mode.  Wait for it to fully enter
-			// this mode.
+	// generate if (OPT_STARTUP)
+	// begin
+`ifdef	OPT_STARTUP
+		initial	maintenance = 1'b1;
+		initial	m_counter   = 0;
+		initial	m_state     = 2'b00;
+		initial	m_cs_n      = 1'b1;
+		initial	m_clk       = 1'b0;
+		always @(posedge i_clk)
+		if (i_reset)
+		begin
 			maintenance <= 1'b1;
-			if (m_counter[14:0]==15'h7fff) // 24000 is the limit
-				m_state <= 2'b01;
+			m_counter   <= 0;
+			m_state     <= 2'b00;
 			m_cs_n <= 1'b1;
 			m_clk  <= 1'b0;
-			end
-
-		2'b01: begin
-			// Now that the flash has had a chance to start up, feed
-			// it with chip selects with no clocks.   This is
-			// guaranteed to remove us from any XIP mode we might
-			// be in upon startup.  We do this so that we might be
-			// placed into a known mode--albeit the wrong one, but
-			// a known one.
-			maintenance <= 1'b1;
-			//
-			// 1111 0000 1111 0000 1111 0000 1111 0000
-			// 1111 0000 1111 0000 1111 0000 1111 0000
-			// 1111 ==> 17 * 4 clocks, or 68 clocks in total
-			//
-			if (m_counter[14:0] == 15'd138)
-				m_state <= 2'b10;
-			m_cs_n <= 1'b0;
-			m_clk  <= m_counter[2];
-			m_data <= { 32'hbb00_0a00 }; // EB command
-			m_data[31:30] <= 2'b11; // just ... not yet
-			end
-		2'b10: begin
-			// Rest, before issuing our initial read command
-			maintenance <= 1'b1;
-			if (m_counter[14:0] == 15'd138 + 15'd48)
-				m_state <= 2'b11;
-			m_cs_n <= 1'b1;	// Rest the interface
-			m_clk  <= 1'b0;
-			m_data <= { 32'hbb_00_0a_00 }; // BB command
-			end
-		2'b11: begin
-			m_cs_n <= 1'b0;
-			if (m_counter[14:0] == 15'd138+15'd48+15'd36)
-				maintenance <= 1'b0;
-			m_clk  <= (!m_clk);
-			if (m_clk) // BB Fast Read Dual I/O Cmd
-				m_data <= {m_data[29:0], 2'h0};
-			if (m_counter[14:0] >= 15'd138+15'd48+15'd33)
-			begin
+			m_data <= 41'h1_ff_ff_ff_ff_ff;
+			m_mod  <= `NORMAL_SPI; // Normal SPI mode
+		end else begin
+			if (maintenance)
+				m_counter <= m_counter + 1'b1;
+			case(m_state)
+			2'b00: begin
+				// Step one: the device may have just been
+				// placed into it's power down mode.  Wait for
+				// it to fully enter this mode.
+				maintenance <= 1'b1;
+				if (m_counter[14:0] == 15'h7fff)
+					// 24000 is the limit
+					m_state <= 2'b01;
 				m_cs_n <= 1'b1;
 				m_clk  <= 1'b0;
-			end
-			// We depend upon the non-maintenance code to provide
-			// our first (bogus) address, mode, dummy cycles, and
-			// data bits.
-			end
-		endcase
-	end
-	assign	m_dat = { (2){m_data[31]} };
+				m_mod <= `NORMAL_SPI;
+				end
+			2'b01: begin
+				// Now that the flash has had a chance to start
+				// up, feed it with chip selects with no clocks.
+				// This is guaranteed to remove us from any XIP
+				// mode we might be in upon startup.  We do this
+				// so that we might be placed into a known
+				// mode--albeit the wrong one, but a known one.
+				maintenance <= 1'b1;
+				//
+				// 1111 0000 1111 0000 1111 0000 1111 0000
+				// 1111 0000 1111 0000 1111 0000 1111 0000
+				// 1111 ==> 17 * 4 clocks, or 68 clocks in total
+				//
+				// 8'hBB is a dual I/O read command
+				m_data <= { 41'h1_bb_00_00_00_a0 };
+				if (m_counter[14:0] == 15'd138)
+					m_state <= 2'b10;
+				m_cs_n <= m_counter[2];
+				m_clk  <= 1'b0;
+				m_mod <= `NORMAL_SPI;
+				end
+			2'b10: begin
+				// Rest, before issuing our initial read command
+				maintenance <= 1'b1;
+				if (m_counter[14:0] == 15'd138 + 15'd48)
+					m_state <= 2'b11;
+				m_cs_n <= 1'b1;	// Rest the interface
+				m_clk  <= 1'b0;
+				m_data <= { 2'b11, 8'hbb, 24'h00, 4'ha, 3'b0 };
+				m_mod <= `NORMAL_SPI;
+				end
+			2'b11: begin
+				m_cs_n <= 1'b0;
+				if (m_counter[14:0] == 15'd138+15'd48+15'd37)
+					maintenance <= 1'b0;
+				m_clk  <= 1'b1;
+				if (m_counter[14:0] < 15'd138 + 15'd48+15'd10)
+					m_mod <= `NORMAL_SPI;
+				else if (m_counter[14:0] < 15'd138 + 15'd48+15'd26)
+					m_mod <= `DUAL_WRITE;
+				else
+					m_mod <= `DUAL_READ;
+				if (m_mod[1])
+					m_data <= {m_data[38:0], 2'h0};
+				else
+					m_data <= {m_data[39:0], 1'h0};
+				if (m_counter[14:0] >= 15'd138+15'd48+15'd33)
+				begin
+					m_cs_n <= 1'b1;
+					m_clk  <= 1'b0;
+				end
+				// We depend upon the non-maintenance code to
+				// provide our first (bogus) address, mode,
+				// dummy cycles, and data bits.
+				end
+			endcase
+		end
+	// end else begin
+`else
+
+		always @(*)
+		begin
+			maintenance = 0;
+			m_counter = 0;
+			m_state = 2'b11;
+			m_mod = 2'b00;
+			m_cs_n = 1'b1;
+			m_clk  = 1'b0;
+			m_data = 41'h0;
+		end
+
+		// verilator lint_off UNUSED
+		wire	[55:0] unused_maintenance;
+		assign	unused_maintenance = { maintenance, m_counter, m_state,
+					m_mod, m_cs_n, m_clk, m_data, m_dat };
+		// verilator lint_on  UNUSED
+	// end endgenerate
+`endif
+	assign	m_dat = (m_mod[1]) ? m_data[40:39] : { (2){m_data[40]} };
 
 	//
 	//
@@ -225,7 +263,8 @@ module	dualflexpress(i_clk, i_reset,
 	begin
 		if (!o_wb_stall)
 		begin
-			data_pipe <= { 2'b00, i_wb_addr, 2'b00, 4'ha };
+			data_pipe <= { 2'b00, {(24-LGFLASHSZ){1'b0}},
+					i_wb_addr, 2'b00, 4'ha };
 
 			if (cfg_write)
 				data_pipe[31:24] <= i_wb_data[7:0];
@@ -321,15 +360,15 @@ module	dualflexpress(i_clk, i_reset,
 		o_dspi_cs_n <= 1'b1;
 	else if (maintenance)
 		o_dspi_cs_n <= m_cs_n;
-	else if ((i_cfg_stb)&&(!o_wb_stall)&&(i_wb_we)
+	else if ((OPT_CFG)&&(i_cfg_stb)&&(!o_wb_stall)&&(i_wb_we)
 			&&((!i_wb_data[`USER_MODE])||(i_wb_data[`USER_CS_n])))
 		o_dspi_cs_n <= 1'b1;
-	else if (cfg_user_cs)
+	else if ((OPT_CFG)&&(cfg_user_cs))
 		o_dspi_cs_n <= 1'b0;
 	else if ((bus_read)||(cfg_write))
 		o_dspi_cs_n <= 1'b0;
 	else
-		o_dspi_cs_n <= (clk_ctr == 0);
+		o_dspi_cs_n <= (clk_ctr <= 1);
 
 	// Control the mode of the external pins
 	// 	NORMAL_SPI: i_miso is an input,  o_mosi is an output
@@ -365,7 +404,7 @@ module	dualflexpress(i_clk, i_reset,
 	else if (cfg_user_mode)
 		o_wb_stall <= 1'b0;
 	else
-		o_wb_stall <= (!o_dspi_cs_n);
+		o_wb_stall <= 1'b0;
 
 	reg	ack_pipe;
 	initial	ack_pipe = 1'b0;
@@ -402,7 +441,7 @@ module	dualflexpress(i_clk, i_reset,
 				o_wb_data <= { o_wb_data[29:0], i_dspi_dat };
 		end
 
-		if ((cfg_user_mode)||((i_cfg_stb)&&(!o_wb_stall)))
+		if ((OPT_CFG)&&((cfg_user_mode)||((i_cfg_stb)&&(!o_wb_stall))))
 			o_wb_data[11:8] <= 
 				{ cfg_user_mode, cfg_user_speed,
 				cfg_user_dir, cfg_user_cs };
@@ -416,21 +455,27 @@ module	dualflexpress(i_clk, i_reset,
 	//
 	initial	cfg_user_mode = 1'b0;
 	always @(posedge i_clk)
-	if (i_reset)
+	if ((i_reset)||(!OPT_CFG))
 		cfg_user_mode <= 1'b0;
 	else if ((i_cfg_stb)&&(!o_wb_stall)&&(i_wb_we))
 		cfg_user_mode <= i_wb_data[`USER_MODE];
 
 	initial	cfg_user_cs = 1'b0;
 	always @(posedge i_clk)
-	if (i_reset)
+	if ((i_reset)||(!OPT_CFG))
 		cfg_user_cs <= 1'b0;
 	else if ((i_cfg_stb)&&(!o_wb_stall)&&(i_wb_we))
 		cfg_user_cs    <= (!i_wb_data[`USER_CS_n])
 						&&(i_wb_data[`USER_MODE]);
 
+	initial	cfg_user_speed = 1'b0;
+	initial	cfg_user_dir   = 1'b0;
 	always @(posedge i_clk)
-	if ((i_cfg_stb)&&(!o_wb_stall)&&(i_wb_we))
+	if (!OPT_CFG)
+	begin
+		cfg_user_speed <= 1'b0;
+		cfg_user_dir   <= 1'b0;
+	end else if ((i_cfg_stb)&&(!o_wb_stall)&&(i_wb_we))
 	begin
 		cfg_user_speed <= i_wb_data[`SPEED_BIT];
 		cfg_user_dir   <= i_wb_data[`DIR_BIT];
@@ -446,8 +491,6 @@ module	dualflexpress(i_clk, i_reset,
 	reg	f_past_valid;
 	wire	[(F_LGDEPTH-1):0]	f_nreqs, f_nacks,
 					f_outstanding;
-	reg	[(AW-1):0]	f_last_pc;
-	reg			f_last_pc_valid;
 	reg	[(AW-1):0]	f_req_addr;
 //
 //
@@ -539,12 +582,12 @@ module	dualflexpress(i_clk, i_reset,
 		assert(maintenance);
 	always @(*)
 	if (m_state == 2'b11)
-		assert(m_counter <= 15'd138+15'd48+15'd37);
+		assert(m_counter <= 15'd138+15'd48+15'd38);
 	always @(*)
-	if ((m_state == 2'b11)&&(m_counter == 15'd138+15'd48+15'd37))
+	if ((m_state == 2'b11)&&(m_counter == 15'd138+15'd48+15'd38))
 		assert(!maintenance);
 	else if (maintenance)
-		assert((m_state!= 2'b11)||(m_counter != 15'd138+15'd48+15'd37));
+		assert((m_state!= 2'b11)||(m_counter != 15'd138+15'd48+15'd38));
 
 	always @(*)
 	if (maintenance)
@@ -570,7 +613,7 @@ module	dualflexpress(i_clk, i_reset,
 
 	always @(*)
 	if ((i_wb_cyc)&&(pre_ack)&&(!o_dspi_cs_n))
-		assert((f_outstanding >= 1)||(cfg_user_mode));
+		assert((f_outstanding >= 1)||((OPT_CFG)&&(cfg_user_mode)));
 
 	always @(*)
 	if ((cfg_user_mode)&&(!o_wb_ack)&&(clk_ctr == 0))
@@ -622,8 +665,14 @@ module	dualflexpress(i_clk, i_reset,
 		assert(clk_ctr <= 6'd33);
 
 	always @(*)
+	if ((o_wb_ack)&&(clk_ctr == 0))
+		assert(!o_wb_stall);
+
+	always @(*)
 	if (clk_ctr > 6'd16)
 		assert(o_dspi_mod == `DUAL_WRITE);
+	else if (clk_ctr > 0)
+		assert(o_dspi_mod == `DUAL_READ);
 
 	always @(posedge i_clk)
 	if (((!OPT_FLASH_PIPELINE)&&(clk_ctr != 0))||(clk_ctr > 6'd1))
@@ -638,7 +687,7 @@ module	dualflexpress(i_clk, i_reset,
 	if (maintenance)
 		assert(!cfg_user_mode);
 	always @(*)
-	if (cfg_user_mode)
+	if ((OPT_CFG)&&(cfg_user_mode))
 		assert(o_dspi_cs_n == !cfg_user_cs);
 	else
 		assert(!cfg_user_cs);
@@ -735,7 +784,7 @@ module	dualflexpress(i_clk, i_reset,
 				&&(clk_ctr == 1))
 		##1 (o_wb_ack)||(!$past(pre_ack))||($past(!i_wb_cyc)));
 
-	// Config write    request (low speed)
+	// Config write request (low speed)
 	assert property (@(posedge i_clk)
 		disable iff (i_reset)
 		(cfg_ls_write)
@@ -795,7 +844,7 @@ module	dualflexpress(i_clk, i_reset,
 
 	// Config release  request
 	assert property (@(posedge i_clk)
-		(!i_reset)&&(i_cfg_stb)&&(!o_wb_stall)&&(i_wb_we)
+		(OPT_CFG)&&(!i_reset)&&(i_cfg_stb)&&(!o_wb_stall)&&(i_wb_we)
 				&&(i_wb_data[`USER_CS_n])
 		|=> (o_wb_ack)&&(o_dspi_cs_n)&&(!cfg_user_cs)
 			&&(clk_ctr == 0)
@@ -803,7 +852,13 @@ module	dualflexpress(i_clk, i_reset,
 
 	// Config read-bus request
 	assert property (@(posedge i_clk)
-		(!i_reset)&&(i_cfg_stb)&&(!o_wb_stall)&&(!i_wb_we)
+		(OPT_CFG)&&(!i_reset)&&(i_cfg_stb)&&(!o_wb_stall)&&(!i_wb_we)
+		|=> (o_wb_ack)&&(o_dspi_cs_n==$past(o_dspi_cs_n))
+			&&(clk_ctr==0));
+
+	// Non-config responses
+	assert property (@(posedge i_clk)
+		(!OPT_CFG)&&(!i_reset)&&(i_cfg_stb)&&(!o_wb_stall)
 		|=> (o_wb_ack)&&(o_dspi_cs_n==$past(o_dspi_cs_n))
 			&&(clk_ctr==0));
 
@@ -932,24 +987,32 @@ module	dualflexpress(i_clk, i_reset,
 
 `endif
 endmodule
-// Originally:			   (XPRS)
-//   Number of wires:                135
-//   Number of wire bits:            556
-//   Number of public wires:          30
-//   Number of public wire bits:     265
-//   Number of memories:               0
-//   Number of memory bits:            0		wbqspiflash
-//   Number of processes:              0	(PIPE)  (R/O)	(FULL)
-//   Number of cells:                454	464	889	1248
-//     FDRE                          114	137	231	 281
-//     LUT1                           28	 30	 23	  23
-//     LUT2                           30	 43	 83	 203
-//     LUT3                           53	 52	 67	 166
-//     LUT4                           18	 18	 29	  57
-//     LUT5                           16	 16	 50	  95
-//     LUT6                           89	 54	215	 256
-//     MUXCY                          46	 67	 59	  59
-//     MUXF7                          32	  3	 60	  31
-//     MUXF8                           7	  1	  5	  10
-//     XORCY                          21	 43	 67	  67
-
+// Originally:			   (XPRS)		wbqspiflash
+//				(NOCFG)	(XPRS) (PIPE)  (R/O)	(FULL)
+//   Number of cells:           367	382	477	889	1248
+//     FDRE                     110	112     135	231	 281
+//     LUT1                      29	 28	 29	 23	  23
+//     LUT2                      36	 33	 50	 83	 203
+//     LUT3                      73	 62      60	 67	 166
+//     LUT4                       7	 10	 18	 29	  57
+//     LUT5                       3	 13	 16	 50	  95
+//     LUT6                      24	 38	 41	215	 256
+//     MUXCY                     52	 52	 73	 59	  59
+//     MUXF7                      9	 12	  9	 60	  31
+//     MUXF8                      3	  1	  3	  5	  10
+//     XORCY                     21	 21	 43	 67	  67
+//
+//
+// and on an iCE40
+//						wbqspiflash
+//			(NOCFG)	(XPRS)	(PIPED)
+// Number of cells:	181	215	303	1263
+//   SB_CARRY		 17	 17	 37	  41
+//   SB_DFF		 25	 25	 26	   2
+//   SB_DFFE		 34	 31	 53	 180
+//   SB_DFFESR		  7	 12	 12	  80
+//   SB_DFFESS		  0	  0	  7	  15
+//   SB_DFFSR		  7	  7	  1	   1
+//   SB_DFFSS		  1	  1	  1	   2
+//   SB_LUT4		 90	122	167	 942
+// 

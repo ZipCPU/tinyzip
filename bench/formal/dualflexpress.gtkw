@@ -1,0 +1,94 @@
+[*]
+[*] GTKWave Analyzer v3.3.66 (w)1999-2015 BSI
+[*] Fri Aug 10 16:06:50 2018
+[*]
+[dumpfile] "/home/dan/work/rnd/opencores/tinyzip/trunk/bench/formal/dualflexpress/engine_0/trace.vcd"
+[dumpfile_mtime] "Fri Aug 10 15:56:29 2018"
+[dumpfile_size] 6676
+[savefile] "/home/dan/work/rnd/opencores/tinyzip/trunk/bench/formal/dualflexpress.gtkw"
+[timestart] 0
+[size] 1719 947
+[pos] -1 -1
+*-3.909014 20 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[sst_width] 196
+[signals_width] 174
+[sst_expanded] 1
+[sst_vpaned_height] 277
+@28
+dualflexpress.i_reset
+dualflexpress.i_clk
+[color] 7
+dualflexpress.i_wb_cyc
+[color] 7
+dualflexpress.i_wb_stb
+[color] 7
+dualflexpress.i_cfg_stb
+[color] 7
+dualflexpress.i_wb_we
+@22
+[color] 7
+dualflexpress.i_wb_addr[21:0]
+[color] 7
+dualflexpress.i_wb_data[31:0]
+@28
+[color] 7
+dualflexpress.o_wb_ack
+@22
+[color] 7
+dualflexpress.o_wb_data[31:0]
+@28
+[color] 7
+dualflexpress.o_wb_stall
+@200
+-
+@28
+[color] 3
+dualflexpress.o_dspi_cs_n
+[color] 3
+dualflexpress.o_dspi_sck
+[color] 3
+dualflexpress.o_dspi_mod[1:0]
+[color] 3
+dualflexpress.o_dspi_dat[1:0]
+[color] 3
+dualflexpress.i_dspi_dat[1:0]
+@22
+dualflexpress.clk_ctr[5:0]
+@201
+-
+@28
+dualflexpress.ack_pipe
+dualflexpress.actual_sck
+[color] 2
+dualflexpress.bus_read
+[color] 2
+dualflexpress.cfg_hs_read
+[color] 2
+dualflexpress.cfg_hs_write
+[color] 2
+dualflexpress.cfg_ls_write
+[color] 2
+dualflexpress.cfg_user
+@200
+-
+@28
+dualflexpress.cfg_user_cs
+dualflexpress.cfg_user_mode
+dualflexpress.cfg_write
+@22
+dualflexpress.data_pipe[29:0]
+dualflexpress.f_const_addr[21:0]
+dualflexpress.f_const_data[31:0]
+@28
+dualflexpress.f_nacks[1:0]
+dualflexpress.f_nreqs[1:0]
+dualflexpress.f_outstanding[1:0]
+dualflexpress.f_past_valid
+@22
+dualflexpress.fv_addr[21:0]
+dualflexpress.fv_data[7:0]
+@28
+dualflexpress.pipe_req
+dualflexpress.pre_ack
+[pattern_trace] 1
+[pattern_trace] 0

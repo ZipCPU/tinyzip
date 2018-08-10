@@ -68,6 +68,32 @@ void	txhex(int num);
 void	tx4hex(int num);
 
 
+asm("\t.section\t.start\n"
+	"\t.global\t_start\n"
+	"\t.type\t_start,@function\n"
+	"\t.equ\t_top_of_stack,0x00404000\n"
+"_start:\n"
+	"\tCLR\tR0\n"
+	"\tCLR\tR1\n"
+	"\tCLR\tR2\n"
+	"\tCLR\tR3\n"
+	"\tCLR\tR4\n"
+	"\tCLR\tR5\n"
+	"\tCLR\tR6\n"
+	"\tCLR\tR7\n"
+	"\tCLR\tR8\n"
+	"\tCLR\tR9\n"
+	"\tCLR\tR10\n"
+	"\tCLR\tR11\n"
+	"\tCLR\tR12\n"
+	"\tLDI\t_top_of_stack,SP\n"
+	"\tCLR\tCC\n"
+	"\tMOV\tbusy_failure(PC),R0\n"
+	"\tBRA\tentry\n"
+"busy_failure:\n"
+	"\tBUSY\n"
+	"\t.section\t.text");
+
 #ifdef	COUNTER
 #define	MARKSTART	start_time = COUNTER
 #define	MARKSTOP	stop_time  = COUNTER
@@ -1066,18 +1092,18 @@ asm("\n\t.text\nidle_task:\n\tWAIT\n\tBRA\tidle_task\n");
 __attribute__((noinline))
 void	txchr(char v) {
 	if (zip_cc() & CC_GIE) {
-		if (PIC & BUSPIC_UARTTX)
-			PIC = BUSPIC_UARTTX;
-		while((PIC & BUSPIC_UARTTX)==0)
+		if (PIC & BUSPIC_UARTTXF)
+			PIC = BUSPIC_UARTTXF;
+		while((PIC & BUSPIC_UARTTXF)==0)
 			;
 	} else
-		wait(BUSPIC_UARTTX);
+		wait(BUSPIC_UARTTXF);
 	_uart->u_tx = v;
 }
 
 void	wait_for_uart_idle(void) {
-	PIC = BUSPIC_UARTTX;
-	while((PIC & BUSPIC_UARTTX)==0)
+	PIC = BUSPIC_UARTTXF;
+	while((PIC & BUSPIC_UARTTXF)==0)
 		;
 }
 
@@ -1452,9 +1478,11 @@ void entry(void) {
 	zip_halt();
 }
 
+/*
 int	main(int argc, char **argv) {
 	entry();
 }
+*/
 
 
 // To build this:

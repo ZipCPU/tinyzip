@@ -104,6 +104,24 @@ int main(int argc, char **argv) {
 				usage();
 				exit(EXIT_SUCCESS);
 				break;
+/*
+			case 'n':
+				if (argn+skp+1 >= argc) {
+					fprintf(stderr, "ERR: No network host given\n");
+					exit(EXIT_SUCCESS);
+				}
+				host = argv[argn+skp+1];
+				skp++; argn--;
+				break;
+			case 'p':
+				if (argn+skp+1 >= argc) {
+					fprintf(stderr, "ERR: No network port # given\n");
+					exit(EXIT_SUCCESS);
+				}
+				port = strtoul(argv[argn+skp+1], NULL, 0);
+				skp++; argn--;
+				break;
+*/
 #ifdef	INCLUDE_ZIPCPU
 			case 'r':
 				start_when_finished = true;
@@ -184,7 +202,7 @@ int main(int argc, char **argv) {
 	// Make certain we can talk to the FPGA
 	try {
 		unsigned v  = m_fpga->readio(R_VERSION);
-		if (v != DATESTAMP) {
+		if (v != 0x20180000) {
 			fprintf(stderr, "Could not communicate with board (invalid version)\n");
 			exit(EXIT_FAILURE);
 		}
@@ -262,13 +280,6 @@ int main(int argc, char **argv) {
 				valid = true;
 #endif
 
-#ifdef	SDRAM_ACCESS
-			// Or SDRAM
-			if ((secp->m_start >= RAMBASE)
-				&&(secp->m_start+secp->m_len
-						<= RAMBASE+RAMLEN))
-				valid = true;
-#endif
 			if (!valid) {
 				fprintf(stderr, "No such memory on board: 0x%08x - %08x\n",
 					secp->m_start, secp->m_start+secp->m_len);
@@ -282,26 +293,6 @@ int main(int argc, char **argv) {
 #endif
 		for(int i=0; secpp[i]->m_len; i++) {
 			secp = secpp[i];
-
-#ifdef	SDRAM_ACCESS
-			if ((secp->m_start >= RAMBASE)
-				&&(secp->m_start+secp->m_len
-						<= RAMBASE+RAMLEN)) {
-				if (verbose)
-					printf("Writing to MEM: %08x-%08x\n",
-						secp->m_start,
-						secp->m_start+secp->m_len);
-				unsigned ln = (secp->m_len+3)&-4;
-				uint32_t	*bswapd = new uint32_t[ln>>2];
-				if (ln != (secp->m_len&-4))
-					memset(bswapd, 0, ln);
-				memcpy(bswapd, secp->m_data,  ln);
-				byteswapbuf(ln>>2, bswapd);
-				m_fpga->writei(secp->m_start, ln>>2, bswapd);
-
-				continue;
-			}
-#endif
 
 #ifdef	BKRAM_ACCESS
 			if ((secp->m_start >= BKRAMBASE)

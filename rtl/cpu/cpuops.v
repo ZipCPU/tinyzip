@@ -109,7 +109,11 @@ module	cpuops(i_clk,i_reset, i_stb, i_op, i_a, i_b, o_c, o_f, o_valid,
 	//
 	// Pull in the multiply logic from elsewhere
 	//
+`ifdef	FORMAL
+`define	MPYOP	abs_mpy
+`else
 `define	MPYOP	mpyop
+`endif
 	`MPYOP #(.IMPLEMENT_MPY(IMPLEMENT_MPY)) thempy(i_clk, i_reset, this_is_a_multiply_op, i_op[1:0],
 		i_a, i_b, mpydone, mpybusy, mpy_result, mpyhi);
 
@@ -171,6 +175,6 @@ module	cpuops(i_clk,i_reset, i_stb, i_op, i_a, i_b, o_c, o_f, o_valid,
 			o_valid <=((i_stb)&&(!this_is_a_multiply_op))||(mpydone);
 
 `ifdef	FORMAL
-// Formal properties for this file are maintained elsewhere
+// Formal properties for this module are maintained elsewhere
 `endif
 endmodule

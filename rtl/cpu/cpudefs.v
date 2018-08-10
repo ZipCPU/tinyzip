@@ -74,7 +74,6 @@
 // A value of 2 will cause the multiply to have a single delay cycle, 3 will
 // have two delay cycles, and 4 (or more) will have 3 delay cycles.
 //
-//
 `define	OPT_MULTIPLY	0
 //
 //
@@ -167,7 +166,7 @@
 // prefetch.  Set OPT_CIS to include these compressed instructions as part of
 // the instruction set.
 //
-`define OPT_CIS		// COST: about 87 LUTs
+`define OPT_CIS
 //
 //
 //
@@ -183,7 +182,7 @@
 // I recommend setting this flag, so as to turn early branching on---if you
 // have the LUTs available to afford it.
 //
-`define	OPT_EARLY_BRANCHING
+// `define	OPT_EARLY_BRANCHING
 //
 //
 //
@@ -229,8 +228,7 @@
 // can be cachable in terms of three separate address regions: one for the
 // SDRAM, one for the flash, and another for the block RAM.
 //
-`define	OPT_DCACHE
-//
+// `define	OPT_DCACHE
 //
 //
 // OPT_PIPELINED_BUS_ACCESS controls whether or not LOD/STO instructions
@@ -267,8 +265,8 @@
 // whether or not the 8 accounting timers are also included.  Set these to
 // include the respective peripherals, comment them out not to.
 //
-`define	INCLUDE_DMA_CONTROLLER
-`define	INCLUDE_ACCOUNTING_COUNTERS
+// `define	INCLUDE_DMA_CONTROLLER
+// `define	INCLUDE_ACCOUNTING_COUNTERS
 //
 //
 `define	DEBUG_SCOPE

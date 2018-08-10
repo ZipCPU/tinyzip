@@ -41,7 +41,7 @@
 ## Define @SYSPIC so that other peripherals needing to be on the ZipSystem's
 ## PIC know the name of the PIC we are using.  Note that this is a global.
 ##
-@SYSPIC= syspic
+@SYSPIC= buspic
 @PREFIX=zip
 @ACCESS=INCLUDE_ZIPCPU
 @DBGBUS=hb
@@ -59,7 +59,7 @@
 	// Variables/definitions needed by the ZipCPU BUS master
 	//
 	//
-	// A 32-bit address indicating where teh ZipCPU should start running
+	// A 32-bit address indicating where the ZipCPU should start running
 	// from
 	localparam	RESET_ADDRESS = @$RESET_ADDRESS;
 	//
@@ -76,15 +76,14 @@
 	wire	[31:0]	zip_debug;
 	wire		zip_trigger;
 	wire		zip_halted;
-	// A reset wire for the ZipCPU
-	wire		cpu_reset;
 @MAIN.INSERT=
 	//
 	//
 	// The ZipCPU/ZipSystem BUS master
 	//
 	//
-	zipbones #(RESET_ADDRESS,ZIP_ADDRESS_WIDTH,10,ZIP_START_HALTED)
+	zipbones #(.RESET_ADDRESS(RESET_ADDRESS),.ADDRESS_WIDTH(ZIP_ADDRESS_WIDTH),
+			.START_HALTED(ZIP_START_HALTED))
 		swic(i_clk, (cpu_reset)||(i_reset),
 			// Zippys wishbone interface
 			zip_cyc, zip_stb, zip_we, zip_addr, zip_data, zip_sel,
@@ -133,26 +132,36 @@
 #endif
 #endif
 
+#define	CPUVAR(A)	VVAR(_swic__DOT__thecpu__DOT_ ## A)
 #define	cpu_break 	VVAR(_swic__DOT__cpu_break)
 #define	cpu_cmd_halt	VVAR(_swic__DOT__cmd_halt)
 #define	cpu_reset	VVAR(_swic__DOT__cmd_reset)
 #define	cpu_ipc		VVAR(_swic__DOT__thecpu__DOT__ipc)
-#define	cpu_upc		VVAR(_swic__DOT__thecpu__DOT__r_upc)
-#define	cpu_gie		VVAR(_swic__DOT__thecpu__DOT__r_gie)
-#define	cpu_iflags	VVAR(_swic__DOT__thecpu__DOT__w_iflags)
-#define	cpu_uflags	VVAR(_swic__DOT__thecpu__DOT__w_uflags)
-#define	cpu_regs	VVAR(_swic__DOT__thecpu__DOT__regset)
+#define	cpu_pf_pc	VVAR(_swic__DOT__thecpu__DOT__pf_pc)
+#define	cpu_upc		CPUVAR(_SET_USER_PC__DOT__r_upc)
+#define	cpu_gie		CPUVAR(_SET_GIE__DOT__r_gie)
+#define	cpu_iflags	CPUVAR(_w_iflags)
+#define	cpu_uflags	CPUVAR(_w_uflags)
+#define	cpu_regs	CPUVAR(_regset)
 #define	cpu_cmd_addr	VVAR(_swic__DOT__cmd_addr)
-#define	cpu_bus_err	VVAR(_swic__DOT__thecpu__DOT__bus_err)
-#define	cpu_ibus_err	VVAR(_swic__DOT__thecpu__DOT__ibus_err_flag)
-#define	cpu_ubus_err	VVAR(_swic__DOT__thecpu__DOT__r_ubus_err_flag)
-#define	cpu_mem_rdaddr	VVAR(_swic__DOT__thecpu__DOT__domem__DOT__rdaddr)
-#define	cpu_mem_wraddr	VVAR(_swic__DOT__thecpu__DOT__domem__DOT__wraddr)
-#define	cpu_op_sim	VVAR(_swic__DOT__thecpu__DOT__op_sim)
+#define	cpu_bus_err	CPUVAR(_bus_err)
+#define	cpu_ibus_err	CPUVAR(_ibus_err_flag)
+#define	cpu_ubus_err	CPUVAR(_r_ubus_err_flag)
+#define	cpu_mem_rdaddr	CPUVAR(_domem__DOT__rdaddr)
+#define	cpu_mem_wraddr	CPUVAR(_domem__DOT__wraddr)
+#define	cpu_op_sim	CPUVAR(_op_sim)
 #define	cpu_op_valid	VVAR(_swic__DOT__thecpu__DOT__op_valid)
-#define	cpu_alu_ce	VVAR(_swic__DOT__thecpu__DOT__alu_ce)
-#define	cpu_new_pc	VVAR(_swic__DOT__thecpu__DOT__new_pc)
-#define	cpu_sim_immv	VVAR(_swic__DOT__thecpu__DOT__op_sim_immv)
+#define	cpu_alu_ce	CPUVAR(_alu_ce)
+#define	cpu_alu_phase	CPUVAR(_GEN_ALU_PHASE__DOT__r_alu_phase)
+#define	cpu_alu_pc	CPUVAR(_dcd_pc)
+#define	cpu_alu_pc_valid	CPUVAR(_alu_pc_valid)
+#define	cpu_mem_pc_valid	CPUVAR(_mem_pc_valid)
+#define	cpu_new_pc	CPUVAR(_new_pc)
+#define	cpu_op_sim	CPUVAR(_op_sim)
+#define	cpu_sim_immv	CPUVAR(_op_sim_immv)
+#define	cpu_wr_ce	CPUVAR(_wr_reg_ce)
+#define	cpu_wr_reg_id	CPUVAR(_wr_reg_id)
+#define	cpu_wr_gpreg	CPUVAR(_wr_gpreg_vl)
 
 @SIM.DEFNS=
 	int	m_cpu_bombed;
@@ -162,6 +171,28 @@
 		m_core->cpu_reset = 1;
 @SIM.CLRRESET=
 		m_core->cpu_reset = 0;
+
+@SIM.TICK=
+#ifdef	@$(ACCESS)
+		// ZipCPU Sim instruction support
+		if ((m_core->cpu_op_sim)
+			&&(m_core->cpu_op_valid)
+			&&(m_core->cpu_alu_ce)
+			&&(!m_core->cpu_new_pc)) {
+			//
+			execsim(m_core->cpu_sim_immv);
+		}
+
+		if (m_cpu_bombed) {
+			if (m_cpu_bombed++ > 12)
+				m_done = true;
+		} else if (m_core->cpu_break) {
+			printf("\n\nBOMB : CPU BREAK RECEIVED\n");
+			m_cpu_bombed++;
+			dump(m_core->cpu_regs);
+		}
+#endif	// @$(ACCESS)
+
 @SIM.METHODS=
 #ifdef	@$(ACCESS)
 	void	loadelf(const char *elfname) {
@@ -252,14 +283,20 @@
 			exit(0);
 		} else if ((imm & 0x0ffff0)==0x00310) {
 			// SIM Exit(User-Reg)
-			int	rcode;
-			rcode = regp[(imm&0x0f)+16] & 0x0ff;
+			int	rcode, rnum;
+			rnum  = (imm&0x0f)+16;
+			rcode = regp[rnum] & 0x0ff;
+			if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
+				rcode = m_core->cpu_wr_gpreg;
 			close();
 			exit(rcode);
 		} else if ((imm & 0x0ffff0)==0x00300) {
 			// SIM Exit(Reg)
-			int	rcode;
-			rcode = regp[(imm&0x0f)+rbase] & 0x0ff;
+			int	rcode, rnum;
+			rnum  = (imm&0x0f)+rbase;
+			rcode = regp[rnum] & 0x0ff;
+			if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
+				rcode = m_core->cpu_wr_gpreg;
 			close();
 			exit(rcode);
 		} else if ((imm & 0x0fff00)==0x00100) {
@@ -274,23 +311,38 @@
 			dump(regp);
 		} else if ((imm & 0x0ffff0)==0x00200) {
 			// Dump a register
-			int rid = (imm&0x0f)+rbase;
+			int	rcode, rnum;
+			rnum  = (imm&0x0f)+rbase;
+			rcode = regp[rnum];
+			if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
+				rcode = m_core->cpu_wr_gpreg;
 			printf("%8lu @%08x R[%2d] = 0x%08x\n", m_time_ps/1000,
-			m_core->cpu_ipc, rid, regp[rid]);
+				m_core->cpu_ipc, rnum, rcode);
 		} else if ((imm & 0x0ffff0)==0x00210) {
 			// Dump a user register
-			int rid = (imm&0x0f);
+			int	rcode, rnum;
+			rnum  = (imm&0x0f)+16;
+			rcode = regp[rnum] & 0x0ff;
+			if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
+				rcode = m_core->cpu_wr_gpreg;
 			printf("%8lu @%08x uR[%2d] = 0x%08x\n", m_time_ps/1000,
-				m_core->cpu_ipc,
-				rid, regp[rid+16]);
+				m_core->cpu_ipc, rnum, rcode);
 		} else if ((imm & 0x0ffff0)==0x00230) {
 			// SOUT[User Reg]
-			int rid = (imm&0x0f)+16;
-			printf("%c", regp[rid]&0x0ff);
+			int	rcode, rnum;
+			rnum  = (imm&0x0f)+16;
+			rcode = regp[rnum];
+			if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
+				rcode = m_core->cpu_wr_gpreg;
+			printf("%c", rcode&0x0ff);
 		} else if ((imm & 0x0fffe0)==0x00220) {
 			// SOUT[User Reg]
-			int rid = (imm&0x0f)+rbase;
-			printf("%c", regp[rid]&0x0ff);
+			int	rcode, rnum;
+			rnum  = (imm&0x0f)+rbase;
+			rcode = regp[rnum];
+			if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
+				rcode = m_core->cpu_wr_gpreg;
+			printf("%c", rcode&0x0ff);
 		} else if ((imm & 0x0fff00)==0x00400) {
 			// SOUT[Imm]
 			printf("%c", imm&0x0ff);
@@ -305,27 +357,6 @@
 		} fflush(stdout);
 	}
 #endif
-
-@SIM.TICK=
-#ifdef	@$(ACCESS)
-		// ZipCPU Sim instruction support
-		if ((m_core->cpu_op_sim)
-			&&(m_core->cpu_op_valid)
-			&&(m_core->cpu_alu_ce)
-			&&(!m_core->cpu_new_pc)) {
-			//
-			execsim(m_core->cpu_sim_immv);
-		}
-
-		if (m_core->cpu_break) {
-			printf("\n\nBOMB : CPU BREAK RECEIVED\n");
-			m_cpu_bombed++;
-			dump(m_core->cpu_regs);
-		} else if (m_cpu_bombed) {
-			if (m_cpu_bombed++ > 12)
-				m_done = true;
-		}
-#endif	// @$(ACCESS)
 
 #
 #
@@ -373,12 +404,16 @@
 @REGS.N=1
 @REGS.0= 0 R_@$(DEVID) @$(DEVID)
 @NADDR=1
+@INT.WATCHDOG.PIC=cpu_reset
+@INT.WATCHDOG.WIRE=watchdog_reset
+@INT.RESET.PIC=cpu_reset
+@INT.RESET.WIRE=i_reset
 @MAIN.INSERT=
 	ziptimer #(.VW(16), .RELOADABLE(0))
 		@$(PREFIX)i(i_clk, i_reset, 1'b1,
 			wb_cyc, (wb_stb)&&(@$(PREFIX)_sel), wb_we, wb_data,
 				@$(PREFIX)_ack, @$(PREFIX)_stall,
-				@$(PREFIX)_data, cpu_reset);
+				@$(PREFIX)_data, watchdog_reset);
 @BDEFS.IONAME=_@$(PREFIX)
 @BDEFS.IOTYPE=unsigned
 @BDEFS.OSDEF=_BOARD_HAS_@$(DEVID)
@@ -391,3 +426,16 @@
 @SLAVE.BUS=hb
 @SLAVE.ORDER=1000000
 @NADDR=2
+@REGS.N=2
+@REGS.0=0 R_ZIPCTRL  CPU
+@REGS.1=1 R_ZIPDATA CPUD
+#
+#
+@PREFIX=cpu_reset
+@MAIN.DEFNS=
+	reg	@$(PREFIX);
+@MAIN.INSERT=
+	always @(posedge i_clk)
+		@$(PREFIX) <= (|@$(PREFIX)_bus);
+@PIC.BUS=cpu_reset_bus
+@PIC.MAX=8

@@ -41,7 +41,7 @@
 `define	CONSOLE_FIFO	2'b01
 `define	CONSOLE_RXREG	2'b10
 `define	CONSOLE_TXREG	2'b11
-module	console(i_clk, i_rst,
+module	console(i_clk, i_reset,
 		//
 		i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data,
 			o_wb_ack, o_wb_stall, o_wb_data,
@@ -50,9 +50,9 @@ module	console(i_clk, i_rst,
 		i_console_stb, i_console_data,
 		//
 		o_console_rx_int, o_console_tx_int,
-		o_console_rxfifo_int, o_console_txfifo_int);
+		o_console_rxfifo_int, o_console_txfifo_int,
+		o_dbg);
 	parameter [3:0]	LGFLEN = 0;
-	parameter [0:0]	HARDWARE_FLOW_CONTROL_PRESENT = 1'b1;
 	// Perform a simple/quick bounds check on the log FIFO length, to make
 	// sure its within the bounds we can support with our current
 	// interface.
@@ -60,7 +60,7 @@ module	console(i_clk, i_rst,
 					: ((LGFLEN > 4'ha) ? 4'ha
 					: ((LGFLEN < 4'h2) ? 4'h2 : LGFLEN));
 	//
-	input	wire		i_clk, i_rst;
+	input	wire		i_clk, i_reset;
 	// Wishbone inputs
 	input	wire		i_wb_cyc, i_wb_stb, i_wb_we;
 	input	wire	[1:0]	i_wb_addr;
@@ -78,6 +78,7 @@ module	console(i_clk, i_rst,
 	//
 	output	wire		o_console_rx_int, o_console_tx_int,
 				o_console_rxfifo_int, o_console_txfifo_int;
+	output	wire	[31:0]	o_dbg;
 
 	/////////////////////////////////////////
 	//
@@ -102,7 +103,8 @@ module	console(i_clk, i_rst,
 		reg		rxf_wb_read;
 		reg		rx_console_reset;
 		// Note that the FIFO will be cleared upon any reset---basically
-		// any time a reset is requested via the wishbone or from i_rst.
+		// any time a reset is requested via the wishbone or from
+		// i_reset.
 		//
 		// The FIFO accepts strobe and data from the receiver.
 		// We issue another wire to it (rxf_wb_read), true when we wish
@@ -112,7 +114,7 @@ module	console(i_clk, i_rst,
 		// containing info regarding how full the FIFO truly is, and
 		// 4) an error indicator.
 		ufifo	#(.LGFLEN(LCLLGFLEN), .BW(7), .RXFIFO(1))
-			rxfifo(i_clk, (i_rst)||(rx_console_reset),
+			rxfifo(i_clk, (i_reset)||(rx_console_reset),
 				i_console_stb, i_console_data,
 				rx_empty_n,
 				rxf_wb_read, rxf_wb_data,
@@ -136,7 +138,7 @@ module	console(i_clk, i_rst,
 
 		initial	rx_console_reset = 1'b1;
 		always @(posedge i_clk)
-			if ((i_rst)||((i_wb_stb)&&(i_wb_addr[1:0]==`CONSOLE_SETUP)&&(i_wb_we)))
+			if ((i_reset)||((i_wb_stb)&&(i_wb_addr[1:0]==`CONSOLE_SETUP)&&(i_wb_we)))
 				// The receiver reset, always set on a master reset
 				// request.
 				rx_console_reset <= 1'b1;
@@ -245,7 +247,7 @@ module	console(i_clk, i_rst,
 		// least one open position within it.
 		assign	o_console_tx_int = txf_status[0];
 		// The second will be true any time the FIFO is less than half
-		// full, allowing us a change to always keep it (near) fully 
+		// full, allowing us a change to always keep it (near) fully
 		// charged.
 		assign	o_console_txfifo_int = txf_status[1];
 
@@ -257,7 +259,7 @@ module	console(i_clk, i_rst,
 		// low, and everything will proceed as normal.
 		initial	tx_console_reset = 1'b1;
 		always @(posedge i_clk)
-			if((i_rst)||((i_wb_stb)&&(i_wb_addr == `CONSOLE_SETUP)&&(i_wb_we)))
+			if((i_reset)||((i_wb_stb)&&(i_wb_addr == `CONSOLE_SETUP)&&(i_wb_we)))
 				tx_console_reset <= 1'b1;
 			else if ((i_wb_stb)&&(i_wb_addr[1:0]==`CONSOLE_TXREG)&&(i_wb_we))
 				tx_console_reset <= i_wb_data[12];
@@ -270,23 +272,30 @@ module	console(i_clk, i_rst,
 		initial	r_txf_wb_write = 1'b0;
 		always @(posedge i_clk)
 		begin
-			if((i_wb_stb)&&(i_wb_we)&&(i_wb_addr == `CONSOLE_TXREG))
+			if (i_reset)
+				r_txf_wb_write <= 1'b0;
+			else if ((i_wb_stb)&&(i_wb_we)
+					&&(i_wb_addr == `CONSOLE_TXREG))
 				r_txf_wb_write <= 1'b1;
 			else if (!i_console_busy)
 				r_txf_wb_write <= 1'b0;
 
-			if((i_wb_stb)&&(i_wb_we)&&(i_wb_addr == `CONSOLE_TXREG))
+			if((i_wb_stb)&&(i_wb_we)&&(!o_console_stb)
+					&&(i_wb_addr == `CONSOLE_TXREG))
 				r_txf_wb_data  <= i_wb_data[6:0];
 		end
 
 		initial	r_txf_err = 1'b0;
 		always @(posedge i_clk)
-			if((i_rst)||((i_wb_stb)&&(i_wb_addr == `CONSOLE_SETUP)&&(i_wb_we)))
+			if ((i_reset)||((i_wb_stb)&&(i_wb_we)
+					&&(i_wb_addr == `CONSOLE_SETUP)))
 				r_txf_err <= 1'b0;
-			else if ((i_wb_stb)&&(i_wb_addr[1:0]==`CONSOLE_TXREG)&&(i_wb_we)&&(i_wb_data[12]))
+			else if ((i_wb_stb)&&(i_wb_we)&&(i_wb_data[12])
+					&&(i_wb_addr==`CONSOLE_TXREG))
 				r_txf_err <= 1'b0;
-			else if((i_wb_stb)&&(i_wb_we)&&(i_wb_addr == `CONSOLE_TXREG)
-				&&(txf_wb_write)&&(i_console_busy))
+			else if((i_wb_stb)&&(i_wb_we)
+				&&(i_wb_addr == `CONSOLE_TXREG)
+				&&(o_console_stb)&&(i_console_busy))
 				r_txf_err <= 1'b1;
 
 		assign	txf_wb_write = r_txf_wb_write;
@@ -306,26 +315,26 @@ module	console(i_clk, i_rst,
 	// This port is different from reading from the receive port, since
 	// there are no side effects.  (Reading from the receive port advances
 	// the receive FIFO, here only writing to the transmit port advances the
-	// transmit FIFO--hence the read values are free for ... whatever.)  
+	// transmit FIFO--hence the read values are free for ... whatever.)
 	// We choose here to provide information about the transmit FIFO
 	// (txf_err, txf_half_full, txf_full_n), as well as our whether or not
 	// we are actively transmitting.
 	wire	[31:0]	wb_tx_data;
-	assign	wb_tx_data = { 16'h00, 
+	assign	wb_tx_data = { 16'h00,
 				1'b0, txf_status[1:0], txf_err,
 				1'b0, o_console_stb, 1'b0,
-				(i_console_busy|tx_empty_n),
-				1'b0,(i_console_busy|tx_empty_n)?txf_wb_data:7'h0};
+				tx_empty_n,
+				1'b0,(tx_empty_n)?txf_wb_data:7'h0};
 
 	// Each of the FIFO's returns a 16 bit status value.  This value tells
-	// us both how big the FIFO is, as well as how much of the FIFO is in 
+	// us both how big the FIFO is, as well as how much of the FIFO is in
 	// use.  Let's merge those two status words together into a word we
 	// can use when reading about the FIFO.
 	wire	[31:0]	wb_fifo_data;
 	assign	wb_fifo_data = { txf_status, rxf_status };
 
 	// You may recall from above that reads take two clocks.  Hence, we
-	// need to delay the address decoding for a clock until the data is 
+	// need to delay the address decoding for a clock until the data is
 	// ready.  We do that here.
 	reg	[1:0]	r_wb_addr;
 	always @(posedge i_clk)
@@ -335,10 +344,10 @@ module	console(i_clk, i_rst,
 	reg	r_wb_ack;
 	initial	r_wb_ack = 1'b0;
 	always @(posedge i_clk) // We'll ACK in two clocks
-		r_wb_ack <= (i_wb_stb);
+		r_wb_ack <= (!i_reset)&&(i_wb_stb);
 	initial	o_wb_ack = 1'b0;
 	always @(posedge i_clk) // Okay, time to set the ACK
-		o_wb_ack <= (r_wb_ack)&&(i_wb_cyc);
+		o_wb_ack <= (!i_reset)&&(r_wb_ack)&&(i_wb_cyc);
 
 	// Finally, set the return data.  This data must be valid on the same
 	// clock o_wb_ack is high.  On all other clocks, it is irrelelant--since
@@ -358,9 +367,60 @@ module	console(i_clk, i_rst,
 	// set this value to zero.
 	assign	o_wb_stall = 1'b0;
 
+	assign	o_dbg = {
+			txf_err, 8'h0,
+			o_console_tx_int, o_console_txfifo_int,
+			i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr,
+				i_wb_data[7:0],
+			1'b0,(tx_empty_n)?txf_wb_data:7'h0};
+
 	// Make verilator happy
 	// verilator lint_off UNUSED
 	wire	[19+5-1:0]	unused;
 	assign	unused = { i_wb_data[31:13], i_wb_data[11:7] };
 	// verilator lint_on UNUSED
+`ifdef	FORMAL
+	reg	f_past_valid;
+	initial	f_past_valid = 1'b0;
+	always @(posedge i_clk)
+		f_past_valid <= 1'b1;
+
+	always @(*)
+	if (!f_past_valid)
+		assume(i_reset);
+
+	localparam	F_LGDEPTH = 3;
+
+	wire	[F_LGDEPTH-1:0]	f_nreq, f_nack, f_outstanding;
+
+	fwb_slave #( .AW(4),.DW(32), .F_LGDEPTH(F_LGDEPTH),
+		.F_MAX_STALL(1), .F_MAX_ACK_DELAY(3)
+		) fwb(i_clk, i_reset,
+			i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data,
+					4'hf,
+				o_wb_ack, o_wb_stall, o_wb_data, 1'b0,
+			f_nreq, f_nack, f_outstanding);
+
+
+	always @(posedge i_clk)
+	if ((f_past_valid)&&(!$past(i_reset))
+			&&($past(o_console_stb))&&($past(i_console_busy)))
+		assert(($stable(o_console_stb))&&($stable(o_console_data)));
+
+	always @(posedge i_clk)
+	if ((f_past_valid)&&($past(i_console_stb)))
+		assert(o_console_rx_int);
+
+	always @(posedge i_clk)
+	if ((f_past_valid)&&(o_console_stb))
+		assert(!o_console_tx_int);
+
+	always @(posedge i_clk)
+	if ((f_past_valid)&&(!o_console_stb))
+		assert((o_console_tx_int)&&(o_console_txfifo_int));
+
+	always @(*)
+	if ((!i_reset)&&(i_wb_cyc))
+		assert(f_outstanding == o_wb_ack + r_wb_ack);
+`endif
 endmodule

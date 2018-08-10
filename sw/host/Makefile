@@ -37,15 +37,14 @@
 ##
 ##
 .PHONY: all
-PROGRAMS := wbregs netuart zipload zipstate zipdbg
+PROGRAMS := wbregs netuart zipload zipstate zipdbg flashid dumpflash
 SCOPES :=
 all: $(PROGRAMS) $(SCOPES)
 CXX := g++
 OBJDIR := obj-pc
 BUSSRCS := hexbus.cpp llcomms.cpp regdefs.cpp byteswap.cpp
-SOURCES := wbregs.cpp netuart.cpp		\
+SOURCES := wbregs.cpp netuart.cpp dumpflash.cpp flashid.cpp flashdrvr.cpp \
 	 $(BUSSRCS) zipload.cpp zipstate.cpp zipdbg.cpp
-	# flashdrvr.cpp
 HEADERS := llcomms.h port.h hexbus.h devbus.h
 OBJECTS := $(addprefix $(OBJDIR)/,$(subst .cpp,.o,$(SOURCES)))
 BUSOBJS := $(addprefix $(OBJDIR)/,$(subst .cpp,.o,$(BUSSRCS)))
@@ -77,10 +76,16 @@ zipstate: $(OBJDIR)/zipstate.o $(BUSOBJS)
 wbregs: $(OBJDIR)/wbregs.o $(BUSOBJS)
 	$(CXX) $(CFLAGS) $^ $(LIBS) -o $@
 
+dumpflash: $(OBJDIR)/dumpflash.o $(BUSOBJS) $(OBJDIR)/flashdrvr.o
+	$(CXX) $(CFLAGS) $^ $(LIBS) -o $@
+
+flashid: $(OBJDIR)/flashid.o $(BUSOBJS) $(OBJDIR)/flashdrvr.o
+	$(CXX) $(CFLAGS) $^ $(LIBS) -o $@
+
 #
 # Programs that depend upon not just the bus objects, but the flash driver
 # as well.
-zipload: $(OBJDIR)/zipload.o $(BUSOBJS) $(OBJDIR)/zipelf.o
+zipload: $(OBJDIR)/zipload.o $(BUSOBJS) $(OBJDIR)/zipelf.o $(OBJDIR)/flashdrvr.o
 	$(CXX) -g $^ -lelf -o $@
 
 
