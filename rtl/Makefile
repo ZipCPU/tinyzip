@@ -112,8 +112,9 @@ $(VDIRFB)/V%__ALL.a: $(VDIRFB)/V%.mk
 bin: tinyzip.bin
 #
 #
+tinyzip.json: tinyzip.blif
 tinyzip.blif: toplevel.v $(VFLIST)
-	yosys -ql yosys.log -p 'synth_ice40 -blif tinyzip.blif -top toplevel' $^
+	yosys -ql yosys.log -p 'synth_ice40 -blif tinyzip.blif -json tinyzip.json -top toplevel' $^
 
 .PHONY: yosys
 yosys: tinyzip.blif
@@ -126,7 +127,7 @@ tinyzip.asc: $(PCFFILE) tinyzip.blif
 arachne: tinyzip.asc
 
 tinyzip.bin: tinyzip.asc
-	icetime -d hx8k -c 50 $<
+	icetime -d lp8k -c 25 $<
 	icepack $< $@
 
 archive:

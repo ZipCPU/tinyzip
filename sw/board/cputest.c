@@ -71,7 +71,7 @@ void	tx4hex(int num);
 asm("\t.section\t.start\n"
 	"\t.global\t_start\n"
 	"\t.type\t_start,@function\n"
-	"\t.equ\t_top_of_stack,0x00404000\n"
+	"\t.equ\t_top_of_stack,0x00502000\n"
 "_start:\n"
 	"\tCLR\tR0\n"
 	"\tCLR\tR1\n"

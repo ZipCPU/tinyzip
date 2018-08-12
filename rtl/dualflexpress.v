@@ -83,8 +83,8 @@ module	dualflexpress(i_clk, i_reset,
 			o_wb_ack, o_wb_stall, o_wb_data,
 		o_dspi_sck, o_dspi_cs_n, o_dspi_mod, o_dspi_dat, i_dspi_dat);
 	parameter	LGFLASHSZ=24;
-	parameter [0:0]	OPT_FLASH_PIPELINE = 1'b0;
-	parameter [0:0]	OPT_CFG = 1'b0;
+	parameter [0:0]	OPT_FLASH_PIPELINE = 1'b1;
+	parameter [0:0]	OPT_CFG = 1'b1;
 // parameter [0:0]	OPT_STARTUP = 1'b1;
 `define	OPT_STARTUP
 	//

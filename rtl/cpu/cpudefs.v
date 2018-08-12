@@ -74,7 +74,7 @@
 // A value of 2 will cause the multiply to have a single delay cycle, 3 will
 // have two delay cycles, and 4 (or more) will have 3 delay cycles.
 //
-`define	OPT_MULTIPLY	0
+`define	OPT_MULTIPLY	10
 //
 //
 //
@@ -87,7 +87,7 @@
 // mode.
 //
 //
-// `define	OPT_DIVIDE
+`define	OPT_DIVIDE
 //
 //
 //

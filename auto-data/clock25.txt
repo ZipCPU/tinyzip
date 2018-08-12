@@ -1,13 +1,11 @@
 ################################################################################
 ##
-## Filename:	auto-data/Makefile
+## Filename: 	auto-data/clock25.txt
 ##
 ## Project:	TinyZip, a demonstration project for the TinyFPGA B2 board
 ##
-## Purpose:	To direct the build of the autofpga automatically generated
-##		files.  The various configuration files are the *.txt files
-##	found in this directory.
-##
+## Purpose:	Creates and defines a 25MHz clock for the rest of the design to
+##		use as the system clock.
 ##
 ## Creator:	Dan Gisselquist, Ph.D.
 ##		Gisselquist Technology, LLC
@@ -38,31 +36,29 @@
 ################################################################################
 ##
 ##
-.PHONY: all
-all:	data
-#
-# Could also depend upon load, if desired, but not necessary
-#
-# This is the list of components that will form our project.  Each file consists
-# of parts and pieces of our project that autofpga will copy/paste into our
-# main project files.
-#
-DATA := global.txt bkram.txt buserr.txt pllclock.txt		\
-	pic.txt pwrcount.txt version.txt			\
-	hbconsole.txt gpio.txt dlyarbiter.txt zipbones.txt	\
-	flexpress.txt
+@$CLKFREQHZ=25000000
+@PREFIX=clk
+@CLOCK.NAME=clk
+@TOP.DEFNS=
+	wire		s_clk, s_reset;
+@TOP.INSERT=
+	assign	s_reset = 1'b0; // This design requires local, not global resets
 
-AUTOFPGA := autofpga
+`ifdef	VERILATOR
+	assign	s_clk = i_clk;
+`else
+	reg	clk_50mhz, clk_25mhz;
 
-.PHONY: data
-data: $(DATA)
-	$(AUTOFPGA) -o ../auto-generated $(DATA)
+	initial	{ clk_25mhz, clk_50mhz } = 2'b00;
+	always @(posedge i_clk)
+		{ clk_25mhz, clk_50mhz } <= { clk_25mhz, clk_50mhz } + 1'b1;
 
-define	notify-on-change
-	@bash -c 'cmp $(1) $(2)/$(1) >& /dev/null; if [[ $$? != 0 ]]; then echo "Files $(1) and $(2)/$(1) differ"; fi'
-endef
+	SB_GB global_buffer(clk_25mhz, s_clk);
+`endif
 
-clean:
-	rm -f toplevel.v main.v regdefs.h regdefs.cpp board.h board.ld
-	rm -f rtl.make.inc main_tb.cpp
-	rm -f dump.txt
+@REGDEFS.H.DEFNS=
+#define	CLKFREQHZ	@$CLKFREQHZ
+@BDEF.DEFN=
+#define	CLKFREQHZ	@$CLKFREQHZ
+@CLOCK.NAME=clk
+@CLOCK.FREQUENCY= @$CLKFREQHZ

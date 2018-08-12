@@ -190,7 +190,12 @@ _@$(PREFIX)=ORIGIN(@$(PREFIX));
 #
 #
 @PREFIX=flash_cfg
-@SLAVE.TYPE=SINGLE
+# Although this is really a SLAVE.TYPE=SINGLE interface, it receives its
+# acknowledgements from the flash above.  SLAVE.TYPE=SINGLE will create
+# acknowledgements in the interconnect, resulting in bus errors.  As a result,
+# this must be a SLAVE.TYPE=OTHER
+#
+@SLAVE.TYPE=OTHER
 @SLAVE.BUS=wb
 @NADDR=1
 @REGS.N=1

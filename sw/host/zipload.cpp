@@ -202,7 +202,7 @@ int main(int argc, char **argv) {
 	// Make certain we can talk to the FPGA
 	try {
 		unsigned v  = m_fpga->readio(R_VERSION);
-		if (v != 0x20180000) {
+		if (v < 0x20180000) {
 			fprintf(stderr, "Could not communicate with board (invalid version)\n");
 			exit(EXIT_FAILURE);
 		}

@@ -1,20 +1,17 @@
 ################################################################################
 ##
-## Filename:	auto-data/Makefile
+## Filename: 	pllclock.txt
 ##
-## Project:	TinyZip, a demonstration project for the TinyFPGA B2 board
+## Project:	AutoFPGA, a utility for composing FPGA designs from peripherals
 ##
-## Purpose:	To direct the build of the autofpga automatically generated
-##		files.  The various configuration files are the *.txt files
-##	found in this directory.
-##
+## Purpose:	
 ##
 ## Creator:	Dan Gisselquist, Ph.D.
 ##		Gisselquist Technology, LLC
 ##
 ################################################################################
 ##
-## Copyright (C) 2017-2018, Gisselquist Technology, LLC
+## Copyright (C) 2018, Gisselquist Technology, LLC
 ##
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of  the GNU General Public License as published
@@ -38,31 +35,37 @@
 ################################################################################
 ##
 ##
-.PHONY: all
-all:	data
-#
-# Could also depend upon load, if desired, but not necessary
-#
-# This is the list of components that will form our project.  Each file consists
-# of parts and pieces of our project that autofpga will copy/paste into our
-# main project files.
-#
-DATA := global.txt bkram.txt buserr.txt pllclock.txt		\
-	pic.txt pwrcount.txt version.txt			\
-	hbconsole.txt gpio.txt dlyarbiter.txt zipbones.txt	\
-	flexpress.txt
+@$CLKFREQHZ=25000000
+@PREFIX=clk
+@CLOCK.NAME=clk
+@TOP.DEFNS=
+	wire		s_clk, s_reset;
+@TOP.INSERT=
+	assign	s_reset = 1'b0; // This design requires local, not global resets
 
-AUTOFPGA := autofpga
+`ifdef	VERILATOR
+	assign	s_clk = i_clk;
+`else
+	wire	clk_25mhz, pll_locked;
+	SB_PLL40_CORE #(
+		.FEEDBACK_PATH("SIMPLE"),
+		.DIVR(4'b0000),
+		.DIVQ(3'b101),
+		.DIVF(7'b011_0001),
+		.FILTER_RANGE(3'b001))
+		plli (
+			// .PACKAGEPIN(i_clk),
+			.REFERENCECLK(i_clk),
+			.PLLOUTCORE(clk_25mhz),
+			.LOCK(pll_locked),
+			.BYPASS(1'b0), .RESETB(1'b1));
 
-.PHONY: data
-data: $(DATA)
-	$(AUTOFPGA) -o ../auto-generated $(DATA)
+	SB_GB global_buffer(clk_25mhz, s_clk);
+`endif
 
-define	notify-on-change
-	@bash -c 'cmp $(1) $(2)/$(1) >& /dev/null; if [[ $$? != 0 ]]; then echo "Files $(1) and $(2)/$(1) differ"; fi'
-endef
-
-clean:
-	rm -f toplevel.v main.v regdefs.h regdefs.cpp board.h board.ld
-	rm -f rtl.make.inc main_tb.cpp
-	rm -f dump.txt
+@REGDEFS.H.DEFNS=
+#define	CLKFREQHZ	@$CLKFREQHZ
+@BDEF.DEFN=
+#define	CLKFREQHZ	@$CLKFREQHZ
+@CLOCK.NAME=clk
+@CLOCK.FREQUENCY= @$CLKFREQHZ

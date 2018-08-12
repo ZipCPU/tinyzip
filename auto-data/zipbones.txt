@@ -365,7 +365,7 @@
 @RTL.MAKE.FILES= zipcpu.v cpuops.v dblfetch.v prefetch.v memops.v
 		idecode.v ziptimer.v 
 		wbpriarbiter.v zipbones.v busdelay.v cpudefs.v icontrol.v
-		div.v mpyop.v wbdblpriarb.v
+		div.v mpyop.v wbdblpriarb.v slowmpy.v
 @RTL.MAKE.SUBD= cpu
 #
 #

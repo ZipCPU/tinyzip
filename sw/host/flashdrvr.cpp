@@ -76,7 +76,7 @@ void	FLASHDRVR::restore_dualio(DEVBUS *fpga) {
 	fpga->writeio(R_FLASHCFG, CFG_USERMODE | CFG_HISPEED | CFG_WEDIR);
 	fpga->writeio(R_FLASHCFG, CFG_USERMODE | CFG_HISPEED | CFG_WEDIR);
 	// Mode byte
-	fpga->writeio(R_FLASHCFG, CFG_USERMODE | CFG_HISPEED | CFG_WEDIR | 0x20);
+	fpga->writeio(R_FLASHCFG, CFG_USERMODE | CFG_HISPEED | CFG_WEDIR | 0xa0);
 	// Read a dummy byte
 	fpga->writeio(R_FLASHCFG, CFG_USERMODE | CFG_HISPEED );
 	// Close the interface
@@ -177,19 +177,21 @@ bool	FLASHDRVR::page_program(const unsigned addr, const unsigned len,
 		m_fpga->writeio(R_FLASHCFG, F_WREN);
 		m_fpga->writeio(R_FLASHCFG, F_END);
 
+		//
 		// Write the page
-		m_fpga->writeio(R_FLASHCFG, F_END);
+		//
 
 		// Issue the command
 		m_fpga->writeio(R_FLASHCFG, F_PP);
 		// The address
-		m_fpga->writeio(R_FLASHCFG, (flashaddr>>16)&0x0ff);
-		m_fpga->writeio(R_FLASHCFG, (flashaddr>> 8)&0x0ff);
-		m_fpga->writeio(R_FLASHCFG, (flashaddr    )&0x0ff);
+		m_fpga->writeio(R_FLASHCFG, CFG_USERMODE|((flashaddr>>16)&0x0ff));
+		m_fpga->writeio(R_FLASHCFG, CFG_USERMODE|((flashaddr>> 8)&0x0ff));
+		m_fpga->writeio(R_FLASHCFG, CFG_USERMODE|((flashaddr    )&0x0ff));
 
 		// Write the page data itself
 		for(unsigned i=0; i<len; i++)
-			m_fpga->writeio(R_FLASHCFG, data[i] & 0x0ff);
+			m_fpga->writeio(R_FLASHCFG, 
+				CFG_USERMODE |(data[i] & 0x0ff));
 		m_fpga->writeio(R_FLASHCFG, F_END);
 
 		printf("Writing page: 0x%08x - 0x%08x", addr, addr+len-1);

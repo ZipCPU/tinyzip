@@ -13,7 +13,7 @@
 *
 /*******************************************************************************
 *
-* Copyright (C) 2016-2017, Gisselquist Technology, LLC
+* Copyright (C) 2016-2018, Gisselquist Technology, LLC
 *
 * This program is free software (firmware): you can redistribute it and/or
 * modify it under the terms of  the GNU General Public License as published
@@ -42,7 +42,7 @@ ENTRY(_start)
 
 MEMORY
 {
-	   bkram(wx) : ORIGIN = 0x00400000, LENGTH = 0x00002000
+	   bkram(wx) : ORIGIN = 0x00500000, LENGTH = 0x00002000
 	   flash(rx) : ORIGIN = 0x00800000, LENGTH = 0x00800000
 }
 
