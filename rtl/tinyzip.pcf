@@ -8,8 +8,8 @@ set_io i_clk		B2
 # set_io	io_usb_n	A4
 # set_io	o_usb_pu	A3
 #
-set_io i_uart_rx	H2	# Replace with USB interface
-set_io o_uart_tx	H9
+set_io i_uart_rx	A1	# Replace with USB interface
+set_io o_uart_tx	B1	# B1=Tx, 224
 #
 set_io	o_led		B3
 #
@@ -24,18 +24,18 @@ set_io	io_dspi_dat[0]		G6
 set_io	io_dspi_dat[1]		H7
 #
 set_io i_gpio[0]	A2	# 221
-set_io i_gpio[1]	A1	# 224
-set_io i_gpio[2]	B1	# 3A
-set_io i_gpio[3]	C2	# 2A
-set_io i_gpio[4]	C1	# 3B
-set_io i_gpio[5]	D2	# 7A
-set_io i_gpio[6]	D1	# 10A
-set_io i_gpio[7]	E2	# 13A
-set_io i_gpio[8]	E1	# 10B
-set_io i_gpio[9]	G2	# 26A
-set_io i_gpio[10]	H1	# 54
-set_io i_gpio[11]	J1	# 55
-# set_io i_gpio[12]	H2	# 26B	-- i_uart_rx
+# set_io i_gpio[1]	A1	# 224
+# set_io i_gpio[2]	B1	# 3A
+set_io i_gpio[1]	C2	# 2A
+set_io i_gpio[2]	C1	# 3B
+set_io i_gpio[3]	D2	# 7A
+set_io i_gpio[4]	D1	# 10A
+set_io i_gpio[5]	E2	# 13A
+set_io i_gpio[6]	E1	# 10B
+set_io i_gpio[7]	G2	# 26A
+set_io i_gpio[8]	H1	# 54
+set_io i_gpio[9]	J1	# 55
+set_io i_gpio[10]	H2	# 26B
 #
 set_io	o_gpio[1]	A6	# 185
 set_io	o_gpio[2]	B6	# 183
@@ -47,4 +47,4 @@ set_io	o_gpio[7]	A9	# 116
 set_io	o_gpio[8]	C9	# 148
 set_io	o_gpio[9]	D8	# 141
 set_io	o_gpio[10]	D9	# 119
-# set_io	o_gpio[11]	H9	# 111	-- o_uart_tx
+set_io	o_gpio[11]	H9	# 111

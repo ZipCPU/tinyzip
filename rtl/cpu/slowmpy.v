@@ -56,7 +56,7 @@ module	slowmpy(i_clk, i_reset, i_stb, i_a, i_b, i_aux, o_busy,
 	input	wire	signed	[(NA-1):0]	i_a;
 	input	wire	signed	[(NB-1):0]	i_b;
 	input	wire				i_aux;
-	output	wire				o_busy, o_done;
+	output	reg				o_busy, o_done;
 	output	reg	signed	[(NA+NB-1):0]	o_p;
 	output	reg				o_aux;
 

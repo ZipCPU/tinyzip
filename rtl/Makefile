@@ -121,7 +121,8 @@ yosys: tinyzip.blif
 
 PCFFILE=tinyzip.pcf
 tinyzip.asc: $(PCFFILE) tinyzip.blif
-	arachne-pnr -d 8k -r -P cm81 -p $(PCFFILE) tinyzip.blif -o $@
+#	arachne-pnr -d 8k -r -P cm81 -p $(PCFFILE) tinyzip.blif -o $@
+	nextpnr-ice40 --lp8k --package cm81 --pcf $(PCFFILE) --json tinyzip.json --asc tinyzip.asc
 
 .PHONY: arachne
 arachne: tinyzip.asc

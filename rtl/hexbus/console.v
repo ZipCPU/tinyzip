@@ -298,8 +298,12 @@ module	console(i_clk, i_reset,
 				&&(o_console_stb)&&(i_console_busy))
 				r_txf_err <= 1'b1;
 
-		assign	txf_wb_write = r_txf_wb_write;
-		assign	txf_wb_data  = r_txf_wb_data;
+		always @(*)
+		begin
+			txf_wb_write = r_txf_wb_write;
+			txf_wb_data  = r_txf_wb_data;
+		end
+
 		assign	txf_err = r_txf_err;
 		assign	o_console_txfifo_int = !txf_wb_write;
 		assign	o_console_tx_int     = !txf_wb_write;

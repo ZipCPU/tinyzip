@@ -1,15 +1,20 @@
+[tasks]
+prf
+cvr
+
 [options]
-mode prove
-depth 40
+prf: mode prove
+prf: depth 42
+cvr: mode cover
+cvr: depth 60
 
 [engines]
-smtbmc
+smtbmc boolector
 
 [script]
-# read -define VERIFIC
-read -define FORMAL
-read -sv fwb_slave.v
-read -sv dualflexpress.v
+read -formal fwb_slave.v
+read -formal dualflexpress.v
+cvr: chparam -set OPT_STARTUP 0 dualflexpress
 prep -top dualflexpress
 
 [files]

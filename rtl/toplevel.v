@@ -70,9 +70,9 @@ module	toplevel(i_clk,
 	// key may be left undefined.
 	//
 	input	wire		i_clk;
-	localparam	NGPI = 12, NGPO=11;
+	localparam	NGPI = 11, NGPO=11;
 	// GPIO ports
-	input		[(12-1):0]	i_gpio;
+	input		[(11-1):0]	i_gpio;
 	output	wire	[(11-1):1]	o_gpio;
 	output	wire				o_led;
 	// Dual SPI flash

@@ -99,7 +99,7 @@ module	cpuops(i_clk,i_reset, i_stb, i_op, i_a, i_b, o_c, o_f, o_valid,
 
 	// A 4-way multiplexer can be done in one 6-LUT.
 	// A 16-way multiplexer can therefore be done in 4x 6-LUT's with
-	//	the Xilinx multiplexer fabric that follows. 
+	//	the Xilinx multiplexer fabric that follows.
 	// Given that we wish to apply this multiplexer approach to 33-bits,
 	// this will cost a minimum of 132 6-LUTs.
 
@@ -109,11 +109,7 @@ module	cpuops(i_clk,i_reset, i_stb, i_op, i_a, i_b, o_c, o_f, o_valid,
 	//
 	// Pull in the multiply logic from elsewhere
 	//
-`ifdef	FORMAL
-`define	MPYOP	abs_mpy
-`else
 `define	MPYOP	mpyop
-`endif
 	`MPYOP #(.IMPLEMENT_MPY(IMPLEMENT_MPY)) thempy(i_clk, i_reset, this_is_a_multiply_op, i_op[1:0],
 		i_a, i_b, mpydone, mpybusy, mpy_result, mpyhi);
 

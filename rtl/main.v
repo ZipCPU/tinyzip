@@ -124,7 +124,7 @@ module	main(i_clk, i_reset,
 // verilator lint_off UNUSED
 	input	wire		i_reset;
 	// verilator lint_on UNUSED
-	localparam	NGPI = 12, NGPO=11;
+	localparam	NGPI = 11, NGPO=11;
 	// GPIO ports
 	input		[(NGPI-1):0]	i_gpio;
 	output	wire	[(NGPO-1):0]	o_gpio;

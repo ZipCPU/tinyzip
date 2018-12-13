@@ -69,24 +69,26 @@
 //
 `default_nettype	none
 //
-`define	USER_MODE	11
-`define	SPEED_BIT	10
-`define	DIR_BIT		9
-`define	USER_CS_n	8
-`define	NORMAL_SPI	2'b00
-`define	DUAL_WRITE	2'b10
-`define	DUAL_READ	2'b11
-//
 // 290 raw, 372 w/ pipe, 410 cfg, 499 cfg w/pipe
 module	dualflexpress(i_clk, i_reset,
 		i_wb_cyc, i_wb_stb, i_cfg_stb, i_wb_we, i_wb_addr, i_wb_data,
 			o_wb_ack, o_wb_stall, o_wb_data,
 		o_dspi_sck, o_dspi_cs_n, o_dspi_mod, o_dspi_dat, i_dspi_dat);
 	parameter	LGFLASHSZ=24;
-	parameter [0:0]	OPT_FLASH_PIPELINE = 1'b1;
-	parameter [0:0]	OPT_CFG = 1'b1;
-// parameter [0:0]	OPT_STARTUP = 1'b1;
-`define	OPT_STARTUP
+	parameter [0:0]	OPT_PIPE    = 1'b1;
+	parameter [0:0]	OPT_CFG     = 1'b1;
+	parameter [0:0]	OPT_STARTUP = 1'b1;
+	//
+	localparam [4:0]	CFG_MODE =	12;
+	localparam [4:0]	QSPEED_BIT = 	11; // Not supported
+	localparam [4:0]	DSPEED_BIT = 	10;
+	localparam [4:0]	DIR_BIT	= 	 9;
+	localparam [4:0]	USER_CS_n = 	 8;
+	//
+	localparam [1:0]	NORMAL_SPI = 	2'b00;
+	localparam [1:0]	DUAL_WRITE = 	2'b10;
+	localparam [1:0]	DUAL_READ = 	2'b11;
+	localparam [7:0] DIO_READ_CMD = 8'hbb;
 	//
 	localparam	AW=LGFLASHSZ-2;
 	localparam	DW=32;
@@ -103,25 +105,31 @@ module	dualflexpress(i_clk, i_reset,
 	output	reg		o_dspi_sck;
 	output	reg		o_dspi_cs_n;
 	output	reg	[1:0]	o_dspi_mod;
-	output	reg	[1:0]	o_dspi_dat;
+	output	wire	[1:0]	o_dspi_dat;
 	input	wire	[1:0]	i_dspi_dat;
+
+	reg	[5:0]	clk_ctr;
 
 	//
 	// User override logic
 	//
-	reg	cfg_user_mode, cfg_user_speed, cfg_user_dir, cfg_user_cs;
-	wire	cfg_write, cfg_hs_write, cfg_ls_write, cfg_hs_read, cfg_user,
-		bus_read, pipe_req;
+	reg	cfg_mode, cfg_speed, cfg_dir, cfg_cs;
+	wire	cfg_write, cfg_hs_write, cfg_ls_write, cfg_hs_read,
+		user_request, bus_request, pipe_req, cfg_noop, cfg_stb;
 	//
-	assign	bus_read  = (i_wb_stb)&&(!o_wb_stall)&&(!i_wb_we)&&(!cfg_user_mode);
-	assign	cfg_user  = (OPT_CFG)&&(i_cfg_stb)&&(!o_wb_stall)&&(i_wb_we)
-						&&(i_wb_data[`USER_MODE]);
-	assign	cfg_write = (cfg_user)&&(!i_wb_data[`USER_CS_n]);
-	assign	cfg_hs_write = (cfg_write)&&(i_wb_data[`SPEED_BIT])
-					&&(i_wb_data[`DIR_BIT]);
-	assign	cfg_hs_read = (cfg_write)&&(i_wb_data[`SPEED_BIT])
-					&&(!i_wb_data[`DIR_BIT]);
-	assign	cfg_ls_write = (cfg_write)&&(!i_wb_data[`SPEED_BIT]);
+	assign	bus_request  = (i_wb_stb)&&(!o_wb_stall)
+					&&(!i_wb_we)&&(!cfg_mode);
+	assign	cfg_stb      = (OPT_CFG)&&(i_cfg_stb)&&(!o_wb_stall);
+	assign	cfg_noop     = (cfg_stb)&&((!i_wb_we)||(!i_wb_data[CFG_MODE])
+					||(i_wb_data[USER_CS_n]));
+	assign	user_request = (cfg_stb)&&(i_wb_we)&&(i_wb_data[CFG_MODE]);
+
+	assign	cfg_write    = (user_request)&&(!i_wb_data[USER_CS_n]);
+	assign	cfg_hs_write = (cfg_write)&&(i_wb_data[DSPEED_BIT])
+					&&(i_wb_data[DIR_BIT]);
+	assign	cfg_hs_read  = (cfg_write)&&(i_wb_data[DSPEED_BIT])
+					&&(!i_wb_data[DIR_BIT]);
+	assign	cfg_ls_write = (cfg_write)&&(!i_wb_data[DSPEED_BIT]);
 
 
 	//
@@ -138,9 +146,8 @@ module	dualflexpress(i_clk, i_reset,
 	reg	[40:0]	m_data;
 	wire	[1:0]	m_dat;
 
-	// generate if (OPT_STARTUP)
-	// begin
-`ifdef	OPT_STARTUP
+	generate if (OPT_STARTUP)
+	begin
 		initial	maintenance = 1'b1;
 		initial	m_counter   = 0;
 		initial	m_state     = 2'b00;
@@ -155,7 +162,7 @@ module	dualflexpress(i_clk, i_reset,
 			m_cs_n <= 1'b1;
 			m_clk  <= 1'b0;
 			m_data <= 41'h1_ff_ff_ff_ff_ff;
-			m_mod  <= `NORMAL_SPI; // Normal SPI mode
+			m_mod  <= NORMAL_SPI; // Normal SPI mode
 		end else begin
 			if (maintenance)
 				m_counter <= m_counter + 1'b1;
@@ -170,7 +177,7 @@ module	dualflexpress(i_clk, i_reset,
 					m_state <= 2'b01;
 				m_cs_n <= 1'b1;
 				m_clk  <= 1'b0;
-				m_mod <= `NORMAL_SPI;
+				m_mod <= NORMAL_SPI;
 				end
 			2'b01: begin
 				// Now that the flash has had a chance to start
@@ -186,12 +193,13 @@ module	dualflexpress(i_clk, i_reset,
 				// 1111 ==> 17 * 4 clocks, or 68 clocks in total
 				//
 				// 8'hBB is a dual I/O read command
-				m_data <= { 41'h1_bb_00_00_00_a0 };
+				m_data <= { 2'b11, DIO_READ_CMD,
+							28'h00_00_00_a, 3'h0 };
 				if (m_counter[14:0] == 15'd138)
 					m_state <= 2'b10;
 				m_cs_n <= m_counter[2];
 				m_clk  <= 1'b0;
-				m_mod <= `NORMAL_SPI;
+				m_mod <= NORMAL_SPI;
 				end
 			2'b10: begin
 				// Rest, before issuing our initial read command
@@ -200,8 +208,9 @@ module	dualflexpress(i_clk, i_reset,
 					m_state <= 2'b11;
 				m_cs_n <= 1'b1;	// Rest the interface
 				m_clk  <= 1'b0;
-				m_data <= { 2'b11, 8'hbb, 24'h00, 4'ha, 3'b0 };
-				m_mod <= `NORMAL_SPI;
+				m_data <= { 2'b11, DIO_READ_CMD, 24'h00,
+						4'ha, 3'b0 };
+				m_mod <= NORMAL_SPI;
 				end
 			2'b11: begin
 				m_cs_n <= 1'b0;
@@ -209,11 +218,11 @@ module	dualflexpress(i_clk, i_reset,
 					maintenance <= 1'b0;
 				m_clk  <= 1'b1;
 				if (m_counter[14:0] < 15'd138 + 15'd48+15'd10)
-					m_mod <= `NORMAL_SPI;
+					m_mod <= NORMAL_SPI;
 				else if (m_counter[14:0] < 15'd138 + 15'd48+15'd26)
-					m_mod <= `DUAL_WRITE;
+					m_mod <= DUAL_WRITE;
 				else
-					m_mod <= `DUAL_READ;
+					m_mod <= DUAL_READ;
 				if (m_mod[1])
 					m_data <= {m_data[38:0], 2'h0};
 				else
@@ -229,8 +238,7 @@ module	dualflexpress(i_clk, i_reset,
 				end
 			endcase
 		end
-	// end else begin
-`else
+	end else begin : NO_STARTUP_OPT
 
 		always @(*)
 		begin
@@ -248,8 +256,8 @@ module	dualflexpress(i_clk, i_reset,
 		assign	unused_maintenance = { maintenance, m_counter, m_state,
 					m_mod, m_cs_n, m_clk, m_data, m_dat };
 		// verilator lint_on  UNUSED
-	// end endgenerate
-`endif
+	end endgenerate
+
 	assign	m_dat = (m_mod[1]) ? m_data[40:39] : { (2){m_data[40]} };
 
 	//
@@ -257,19 +265,19 @@ module	dualflexpress(i_clk, i_reset,
 	// Data / access portion
 	//
 	//
-	reg	[33:4]	data_pipe;
+	reg	[33:0]	data_pipe;
 	initial	data_pipe = 0;
 	always @(posedge i_clk)
 	begin
 		if (!o_wb_stall)
 		begin
 			data_pipe <= { 2'b00, {(24-LGFLASHSZ){1'b0}},
-					i_wb_addr, 2'b00, 4'ha };
+					i_wb_addr, 2'b00, 4'ha, 4'h0 };
 
 			if (cfg_write)
 				data_pipe[31:24] <= i_wb_data[7:0];
 
-			if ((cfg_write)&&(!i_wb_data[`SPEED_BIT]))
+			if ((cfg_write)&&(!i_wb_data[DSPEED_BIT]))
 			begin
 				data_pipe[30] <= i_wb_data[7];
 				data_pipe[28] <= i_wb_data[6];
@@ -281,7 +289,7 @@ module	dualflexpress(i_clk, i_reset,
 				data_pipe[16] <= i_wb_data[0];
 			end
 		end else // if (o_wb_stall)
-			data_pipe <= { data_pipe[31:4], 2'h0 };
+			data_pipe <= { data_pipe[31:0], 2'h0 };
 
 		if (maintenance)
 			data_pipe[33:32] <= m_dat;
@@ -289,27 +297,31 @@ module	dualflexpress(i_clk, i_reset,
 
 	assign	o_dspi_dat = data_pipe[33:32];
 
+	// Since we can't abort any transaction once started, without
+	// risking losing XIP mode or any other mode we might be in, we'll
+	// keep track of whether this operation should be ack'd upon
+	// completion
 	reg	pre_ack = 1'b0;
 	always @(posedge i_clk)
 	if ((i_reset)||(!i_wb_cyc))
 		pre_ack <= 1'b0;
-	else if ((bus_read)||(cfg_write))
+	else if ((bus_request)||(cfg_write))
 		pre_ack <= 1'b1;
 
 	generate
-	if (OPT_FLASH_PIPELINE)
-	begin : OPT_PIPE
+	if (OPT_PIPE)
+	begin : OPT_PIPE_BLOCK
 		reg	r_pipe_req;
 		wire	w_pipe_condition;
 
 		reg	[(AW-1):0]	next_addr;
 		always  @(posedge i_clk)
-			if (!o_wb_stall)
-				next_addr <= i_wb_addr + 1'b1;
+		if (!o_wb_stall)
+			next_addr <= i_wb_addr + 1'b1;
 
 		assign	w_pipe_condition = (i_wb_stb)&&(pre_ack)
 				&&(!maintenance)
-				&&(!cfg_user_mode)
+				&&(!cfg_mode)
 				&&(!o_dspi_cs_n)
 				&&(next_addr == i_wb_addr);
 
@@ -323,14 +335,13 @@ module	dualflexpress(i_clk, i_reset,
 	end endgenerate
 
 
-	reg	[5:0]	clk_ctr;
 	initial	clk_ctr = 0;
 	always @(posedge i_clk)
 	if ((i_reset)||(maintenance))
 		clk_ctr <= 0;
-	else if ((bus_read)&&(!pipe_req))
+	else if ((bus_request)&&(!pipe_req))
 		clk_ctr <= 6'd33;
-	else if (bus_read)
+	else if (bus_request) // && pipe_req
 		clk_ctr <= 6'd16;
 	else if (cfg_ls_write)
 		clk_ctr <= 6'd9;
@@ -345,7 +356,7 @@ module	dualflexpress(i_clk, i_reset,
 		o_dspi_sck <= 1'b0;
 	else if (maintenance)
 		o_dspi_sck <= m_clk;
-	else if ((bus_read)||(cfg_write))
+	else if ((bus_request)||(cfg_write))
 		o_dspi_sck <= 1'b1;
 	else if (clk_ctr[5:0] > 6'd2)
 		o_dspi_sck <= 1'b1;
@@ -360,12 +371,11 @@ module	dualflexpress(i_clk, i_reset,
 		o_dspi_cs_n <= 1'b1;
 	else if (maintenance)
 		o_dspi_cs_n <= m_cs_n;
-	else if ((OPT_CFG)&&(i_cfg_stb)&&(!o_wb_stall)&&(i_wb_we)
-			&&((!i_wb_data[`USER_MODE])||(i_wb_data[`USER_CS_n])))
-		o_dspi_cs_n <= 1'b1;
-	else if ((OPT_CFG)&&(cfg_user_cs))
+	else if ((cfg_stb)&&(i_wb_we))
+		o_dspi_cs_n <= (!i_wb_data[CFG_MODE])||(i_wb_data[USER_CS_n]);
+	else if ((OPT_CFG)&&(cfg_cs))
 		o_dspi_cs_n <= 1'b0;
-	else if ((bus_read)||(cfg_write))
+	else if ((bus_request)||(cfg_write))
 		o_dspi_cs_n <= 1'b0;
 	else
 		o_dspi_cs_n <= (clk_ctr <= 1);
@@ -374,54 +384,48 @@ module	dualflexpress(i_clk, i_reset,
 	// 	NORMAL_SPI: i_miso is an input,  o_mosi is an output
 	// 	DUAL_READ:  i_miso is an input,  o_mosi is an input
 	// 	DUAL_WRITE: i_miso is an output, o_mosi is an output
-	initial	o_dspi_mod =  `NORMAL_SPI;
+	initial	o_dspi_mod =  NORMAL_SPI;
 	always @(posedge i_clk)
 	if (i_reset)
-		o_dspi_mod <= `NORMAL_SPI;
+		o_dspi_mod <= NORMAL_SPI;
 	else if (maintenance)
 		o_dspi_mod <= m_mod;
-	else if ((bus_read)&&(!pipe_req))
-		o_dspi_mod <= `DUAL_WRITE;
-	else if ((bus_read)||(cfg_hs_read))
-		o_dspi_mod <= `DUAL_READ;
+	else if ((bus_request)&&(!pipe_req))
+		o_dspi_mod <= DUAL_WRITE;
+	else if ((bus_request)||(cfg_hs_read))
+		o_dspi_mod <= DUAL_READ;
 	else if (cfg_hs_write)
-		o_dspi_mod <= `DUAL_WRITE;
-	else if ((cfg_ls_write)||((cfg_user_mode)&&(!cfg_user_speed)))
-		o_dspi_mod <= `NORMAL_SPI;
-	else if ((clk_ctr <= 6'd17)&&((!cfg_user_mode)||(!cfg_user_dir)))
-		o_dspi_mod <= `DUAL_READ;
+		o_dspi_mod <= DUAL_WRITE;
+	else if ((cfg_ls_write)||((cfg_mode)&&(!cfg_speed)))
+		o_dspi_mod <= NORMAL_SPI;
+	else if ((clk_ctr <= 6'd17)&&((!cfg_mode)||(!cfg_dir)))
+		o_dspi_mod <= DUAL_READ;
 
 	initial	o_wb_stall = 1'b1;
 	always @(posedge i_clk)
 	if (i_reset)
 		o_wb_stall <= 1'b1;
-	else if ((maintenance)||(cfg_write)||(bus_read))
+	else if ((maintenance)||(cfg_write)||(bus_request))
 		o_wb_stall <= 1'b1;
 	else if ((i_wb_stb)&&(pipe_req)&&(clk_ctr == 6'd2))
 		o_wb_stall <= 1'b0;
 	else if (clk_ctr > 1)
 		o_wb_stall <= 1'b1;
-	else if (cfg_user_mode)
-		o_wb_stall <= 1'b0;
 	else
 		o_wb_stall <= 1'b0;
-
-	reg	ack_pipe;
-	initial	ack_pipe = 1'b0;
-	always @(posedge i_clk)
-		ack_pipe <= (clk_ctr == 6'd2);
 
 	initial	o_wb_ack = 1'b0;
 	always @(posedge i_clk)
 	if (i_reset)
 		o_wb_ack <= 1'b0;
-	else if(((i_wb_stb)||(i_cfg_stb))&&(!o_wb_stall)&&(!bus_read)&&(!cfg_write))
-		// Writes are not allowed, they immediately ack after doing
-		// nothing.   Reads from the configuration register need no
-		// other logic they can also be returned immediately
+	else if (clk_ctr == 1)
+		o_wb_ack <= (i_wb_cyc)&&(pre_ack);
+	else if ((i_wb_stb)&&(!o_wb_stall)&&(!bus_request))
+		o_wb_ack <= 1'b1;
+	else if (cfg_noop)
 		o_wb_ack <= 1'b1;
 	else
-		o_wb_ack <= (pre_ack)&&(ack_pipe)&&(i_wb_cyc)&&(!i_reset);
+		o_wb_ack <= 1'b0;
 
 	reg	actual_sck;
 	initial	actual_sck = 1'b0;
@@ -441,10 +445,9 @@ module	dualflexpress(i_clk, i_reset,
 				o_wb_data <= { o_wb_data[29:0], i_dspi_dat };
 		end
 
-		if ((OPT_CFG)&&((cfg_user_mode)||((i_cfg_stb)&&(!o_wb_stall))))
-			o_wb_data[11:8] <= 
-				{ cfg_user_mode, cfg_user_speed,
-				cfg_user_dir, cfg_user_cs };
+		if ((OPT_CFG)&&((cfg_mode)||((i_cfg_stb)&&(!o_wb_stall))))
+			o_wb_data[12:8] <= { cfg_mode, 1'b0, cfg_speed,
+				cfg_dir, cfg_cs };
 	end
 
 
@@ -453,32 +456,31 @@ module	dualflexpress(i_clk, i_reset,
 	//  User override access
 	//
 	//
-	initial	cfg_user_mode = 1'b0;
+	initial	cfg_mode = 1'b0;
 	always @(posedge i_clk)
 	if ((i_reset)||(!OPT_CFG))
-		cfg_user_mode <= 1'b0;
+		cfg_mode <= 1'b0;
 	else if ((i_cfg_stb)&&(!o_wb_stall)&&(i_wb_we))
-		cfg_user_mode <= i_wb_data[`USER_MODE];
+		cfg_mode <= i_wb_data[CFG_MODE];
 
-	initial	cfg_user_cs = 1'b0;
+	initial	cfg_cs = 1'b0;
 	always @(posedge i_clk)
 	if ((i_reset)||(!OPT_CFG))
-		cfg_user_cs <= 1'b0;
+		cfg_cs <= 1'b0;
 	else if ((i_cfg_stb)&&(!o_wb_stall)&&(i_wb_we))
-		cfg_user_cs    <= (!i_wb_data[`USER_CS_n])
-						&&(i_wb_data[`USER_MODE]);
+		cfg_cs    <= (!i_wb_data[USER_CS_n])&&(i_wb_data[CFG_MODE]);
 
-	initial	cfg_user_speed = 1'b0;
-	initial	cfg_user_dir   = 1'b0;
+	initial	cfg_speed = 1'b0;
+	initial	cfg_dir   = 1'b0;
 	always @(posedge i_clk)
 	if (!OPT_CFG)
 	begin
-		cfg_user_speed <= 1'b0;
-		cfg_user_dir   <= 1'b0;
+		cfg_speed <= 1'b0;
+		cfg_dir   <= 1'b0;
 	end else if ((i_cfg_stb)&&(!o_wb_stall)&&(i_wb_we))
 	begin
-		cfg_user_speed <= i_wb_data[`SPEED_BIT];
-		cfg_user_dir   <= i_wb_data[`DIR_BIT];
+		cfg_speed <= i_wb_data[DSPEED_BIT];
+		cfg_dir   <= i_wb_data[DIR_BIT];
 	end
 
 	// verilator lint_off UNUSED
@@ -525,11 +527,13 @@ module	dualflexpress(i_clk, i_reset,
 		assume((!i_wb_stb)||(!i_cfg_stb));
 
 	always @(posedge i_clk)
-	if ((f_past_valid)&&(!$past(i_reset))&&($past(i_wb_stb))&&($past(o_wb_stall)))
+	if ((f_past_valid)&&(!$past(i_reset))
+			&&($past(i_wb_stb))&&($past(o_wb_stall)))
 		assume(i_wb_stb);
 
 	always @(posedge i_clk)
-	if ((f_past_valid)&&(!$past(i_reset))&&($past(i_cfg_stb))&&($past(o_wb_stall)))
+	if ((f_past_valid)&&(!$past(i_reset))
+			&&($past(i_cfg_stb))&&($past(o_wb_stall)))
 		assume(i_cfg_stb);
 
 	fwb_slave #(.AW(AW), .DW(DW),.F_LGDEPTH(F_LGDEPTH),
@@ -556,19 +560,15 @@ module	dualflexpress(i_clk, i_reset,
 
 	always @(*)
 	if (maintenance)
+	begin
 		assume((!i_wb_stb)&&(!i_cfg_stb));
 
-	always @(*)
-	if (maintenance)
 		assert(f_outstanding == 0);
 
-	always @(*)
-	if (maintenance)
-	begin
 		assert(o_wb_stall);
 		//
 		assert(clk_ctr == 0);
-		assert(cfg_user_mode == 1'b0);
+		assert(cfg_mode == 1'b0);
 	end
 
 	always @(*)
@@ -591,14 +591,15 @@ module	dualflexpress(i_clk, i_reset,
 
 	always @(*)
 	if (maintenance)
+	begin
 		assert(clk_ctr == 0);
-	always @(*)
-	if (maintenance)
 		assert(!o_wb_ack);
+	end
 
 	always @(posedge i_clk)
 	if (o_wb_ack)
 		assert(clk_ctr[3:0] == 0);
+
 	always @(posedge i_clk)
 	if ((f_outstanding > 0)&&(clk_ctr > 0))
 		assert(pre_ack);
@@ -613,14 +614,14 @@ module	dualflexpress(i_clk, i_reset,
 
 	always @(*)
 	if ((i_wb_cyc)&&(pre_ack)&&(!o_dspi_cs_n))
-		assert((f_outstanding >= 1)||((OPT_CFG)&&(cfg_user_mode)));
+		assert((f_outstanding >= 1)||((OPT_CFG)&&(cfg_mode)));
 
 	always @(*)
-	if ((cfg_user_mode)&&(!o_wb_ack)&&(clk_ctr == 0))
+	if ((cfg_mode)&&(!o_wb_ack)&&(clk_ctr == 0))
 		assert(f_outstanding == 0);
 
 	always @(*)
-	if (cfg_user_mode)
+	if (cfg_mode)
 		assert(f_outstanding <= 1);
 	/////////////////
 	//
@@ -633,11 +634,21 @@ module	dualflexpress(i_clk, i_reset,
 	begin
 		assert(clk_ctr == 0);
 		assert(o_dspi_sck  == 1'b0);
-		//assert((o_dspi_mod == `NORMAL_SPI)||(o_dspi_mod == `DUAL_READ));
 	end
 
 	always @(*)
 		assert(o_dspi_mod != 2'b01);
+
+	always @(*)
+	if (clk_ctr > 5'h9)
+	begin
+		assert(!cfg_mode);
+		assert(!cfg_cs);
+	end
+
+	always @(*)
+	if ((clk_ctr == 0)&&(cfg_mode)&&(cfg_speed)&&(cfg_cs))
+		assert(o_dspi_mod == DUAL_READ);
 
 	/////////////////
 	//
@@ -645,7 +656,7 @@ module	dualflexpress(i_clk, i_reset,
 	//
 	/////////////////
 	always @(posedge i_clk)
-	if ((f_past_valid)&&(!$past(i_reset))&&($past(bus_read)))
+	if ((f_past_valid)&&(!$past(i_reset))&&($past(bus_request)))
 	begin
 		assert(!o_dspi_cs_n);
 		assert(o_dspi_sck == 1'b1);
@@ -654,10 +665,10 @@ module	dualflexpress(i_clk, i_reset,
 		if (!$past(o_dspi_cs_n))
 		begin
 			assert(clk_ctr == 6'd16);
-			assert(o_dspi_mod == `DUAL_READ);
+			assert(o_dspi_mod == DUAL_READ);
 		end else begin
 			assert(clk_ctr == 6'd33);
-			assert(o_dspi_mod == `DUAL_WRITE);
+			assert(o_dspi_mod == DUAL_WRITE);
 		end
 	end
 
@@ -669,13 +680,26 @@ module	dualflexpress(i_clk, i_reset,
 		assert(!o_wb_stall);
 
 	always @(*)
-	if (clk_ctr > 6'd16)
-		assert(o_dspi_mod == `DUAL_WRITE);
-	else if (clk_ctr > 0)
-		assert(o_dspi_mod == `DUAL_READ);
+	if (!maintenance)
+	begin
+		if (cfg_mode)
+		begin
+			if (!cfg_cs)
+				assert(o_dspi_cs_n);
+			else if (!cfg_speed)
+				assert(o_dspi_mod == NORMAL_SPI);
+			else if ((cfg_dir)&&(clk_ctr > 0))
+				assert(o_dspi_mod == DUAL_WRITE);
+			else
+				assert(o_dspi_mod == DUAL_READ);
+		end else if (clk_ctr > 5'd16)
+			assert(o_dspi_mod == DUAL_WRITE);
+		else if (clk_ctr > 0)
+			assert(o_dspi_mod == DUAL_READ);
+	end
 
 	always @(posedge i_clk)
-	if (((!OPT_FLASH_PIPELINE)&&(clk_ctr != 0))||(clk_ctr > 6'd1))
+	if (((!OPT_PIPE)&&(clk_ctr != 0))||(clk_ctr > 6'd1))
 		assert(o_wb_stall);
 
 	/////////////////
@@ -684,13 +708,13 @@ module	dualflexpress(i_clk, i_reset,
 	//
 	/////////////////
 	always @(*)
-	if (maintenance)
-		assert(!cfg_user_mode);
+	if ((maintenance)||(!OPT_CFG))
+		assert(!cfg_mode);
 	always @(*)
-	if ((OPT_CFG)&&(cfg_user_mode))
-		assert(o_dspi_cs_n == !cfg_user_cs);
+	if ((OPT_CFG)&&(cfg_mode))
+		assert(o_dspi_cs_n == !cfg_cs);
 	else
-		assert(!cfg_user_cs);
+		assert(!cfg_cs);
 
 	//
 	//
@@ -705,7 +729,7 @@ module	dualflexpress(i_clk, i_reset,
 
 	reg	[21:0]	fv_addr;
 	always @(posedge i_clk)
-	if (bus_read)
+	if (bus_request)
 		fv_addr <= i_wb_addr;
 
 	reg	[7:0]	fv_data;
@@ -713,255 +737,240 @@ module	dualflexpress(i_clk, i_reset,
 	if (cfg_write)
 		fv_data <= i_wb_data[7:0];
 
-	// Bus write request
+	// Bus write request ... immediately ack
 	assert property (@(posedge i_clk)
 		(!i_reset)&&(i_wb_stb)&&(!o_wb_stall)&&(i_wb_we)
-		|=> (o_wb_ack)&&(o_dspi_cs_n==$past(o_dspi_cs_n))&&(!o_dspi_sck));
+		|=> (o_wb_ack)&&($stable(o_dspi_cs_n))&&(!o_dspi_sck));
+
 	assert property (@(posedge i_clk)
-		(!i_reset)&&(i_wb_stb)&&(!o_wb_stall)&&(!i_wb_we)&&(cfg_user_mode)
-		|=> (o_wb_ack)&&(o_dspi_cs_n===$past(o_dspi_cs_n))
-				&&(!o_dspi_sck));
-	// Bus read request
-	assert property (@(posedge i_clk)
-		disable iff (i_reset)
-		(i_wb_stb)&&(!o_wb_stall)&&(!i_wb_we)&&(!cfg_user_mode)
-			&&(o_dspi_cs_n)
-		|=> (((o_wb_stall)&&(!o_dspi_cs_n)&&(o_dspi_sck)
-				&&(o_dspi_mod == `DUAL_WRITE)&&(!o_wb_ack)
-				&&(f_outstanding <= 1))
+		(!i_reset)&&(i_wb_stb)&&(!o_wb_stall)&&(!i_wb_we)&&(cfg_mode)
+		|=> (o_wb_ack)&&($stable(o_dspi_cs_n))&&(!o_dspi_sck));
+
+	sequence	READ_REQUEST(ADDR);
+		((o_wb_stall)&&(!o_dspi_cs_n)&&(o_dspi_sck)
+				&&(o_dspi_mod == DUAL_WRITE)&&(!o_wb_ack))
 			throughout
 			(o_dspi_dat == 2'b00)&&(clk_ctr==6'd33)
-			##1 (o_dspi_dat == fv_addr[21:20])&&(clk_ctr==6'd32)
-			##1 (o_dspi_dat == fv_addr[19:18])&&(clk_ctr==6'd31)
-			##1 (o_dspi_dat == fv_addr[17:16])&&(clk_ctr==6'd30)
-			##1 (o_dspi_dat == fv_addr[15:14])&&(clk_ctr==6'd29)
-			##1 (o_dspi_dat == fv_addr[13:12])&&(clk_ctr==6'd28)
-			##1 (o_dspi_dat == fv_addr[11:10])&&(clk_ctr==6'd27)
-			##1 (o_dspi_dat == fv_addr[ 9: 8])&&(clk_ctr==6'd26)
-			##1 (o_dspi_dat == fv_addr[ 7: 6])&&(clk_ctr==6'd25)
-			##1 (o_dspi_dat == fv_addr[ 5: 4])&&(clk_ctr==6'd24)
-			##1 (o_dspi_dat == fv_addr[ 3: 2])&&(clk_ctr==6'd23)
-			##1 (o_dspi_dat == fv_addr[ 1: 0])&&(clk_ctr==6'd22)
-			##1 (o_dspi_dat == 2'b00)&&(clk_ctr==6'd21))
-		##1 (((o_wb_stall)&&(!o_dspi_cs_n)&&(o_dspi_sck)
-				&&(o_dspi_mod == `DUAL_WRITE)&&(!o_wb_ack)
-				&&(f_outstanding <= 1))
-			throughout
-			(o_dspi_dat == 2'b10)
-			##1 (o_dspi_dat == 2'b10)
-			##1 (o_dspi_dat == 2'b00)
-			##1 (o_dspi_dat == 2'b00)&&(clk_ctr == 6'd17))
-		##1 ((o_wb_stall)&&(!o_dspi_cs_n)&&(o_dspi_sck)
-				&&(o_dspi_mod == `DUAL_READ)&&(!o_wb_ack)
-				&&(f_outstanding <= 1)) [*15]
-		##1 ((!o_dspi_cs_n)
-				&&(!o_dspi_sck)||(OPT_FLASH_PIPELINE)
-				&&(o_dspi_sck==$past(pipe_req))
-				&&(o_dspi_mod == `DUAL_READ)&&(clk_ctr==6'd1)
-				&&(!o_wb_ack)
-				&&((o_wb_stall)||(OPT_FLASH_PIPELINE))
-				&&(f_outstanding <= 1))
-		##1 ((o_wb_ack)||(!$past(pre_ack))||($past(!i_wb_cyc))));
-			
+			##1 (o_dspi_dat == ADDR[21:20])&&(clk_ctr==6'd32)
+			##1 (o_dspi_dat == ADDR[19:18])&&(clk_ctr==6'd31)
+			##1 (o_dspi_dat == ADDR[17:16])&&(clk_ctr==6'd30)
+			##1 (o_dspi_dat == ADDR[15:14])&&(clk_ctr==6'd29)
+			##1 (o_dspi_dat == ADDR[13:12])&&(clk_ctr==6'd28)
+			##1 (o_dspi_dat == ADDR[11:10])&&(clk_ctr==6'd27)
+			##1 (o_dspi_dat == ADDR[ 9: 8])&&(clk_ctr==6'd26)
+			##1 (o_dspi_dat == ADDR[ 7: 6])&&(clk_ctr==6'd25)
+			##1 (o_dspi_dat == ADDR[ 5: 4])&&(clk_ctr==6'd24)
+			##1 (o_dspi_dat == ADDR[ 3: 2])&&(clk_ctr==6'd23)
+			##1 (o_dspi_dat == ADDR[ 1: 0])&&(clk_ctr==6'd22)
+			##1 (o_dspi_dat == 2'b00)&&(clk_ctr==6'd21);
+	endsequence;
 
+	sequence	MODE_BYTE;
+		((o_wb_stall)&&(!o_dspi_cs_n)&&(o_dspi_sck)
+				&&(o_dspi_mod == DUAL_WRITE)&&(!o_wb_ack))
+			throughout
+			// Mode nibble 1
+			(o_dspi_dat == 2'b10)&&(clk_ctr == 6'd20)
+			##1 (o_dspi_dat == 2'b10)&&(clk_ctr == 6'd19);
+			// Mode nibble 2
+			##1 (o_dspi_dat == 2'b00)&&(clk_ctr == 6'd18)
+			##1 (o_dspi_dat == 2'b00)&&(clk_ctr == 6'd17);
+	endsequence
+
+	sequence	READ_WORD;
+		((!o_dspi_cs_n)&&(!o_wb_ack)
+			&&(o_dspi_mod == DUAL_READ)) throughout
+		(o_wb_stall)&&(o_dspi_sck)&&(clk_ctr == 6'h16)
+		##1 ((o_wb_stall)&&(o_dspi_sck)) [*14]
+		##1 (o_dspi_sck==(i_wb_stb && !o_wb_stall))&&(clk_ctr==6'd1)
+			&&((OPT_PIPE)||((!o_dspi_sck)&&(o_wb_stall)));
+	endsequence;
+
+	sequence	ACK_WORD;
+		((o_wb_ack)||(!$past(pre_ack))||($past(!i_wb_cyc)))
+			&&(o_wb_data[31:30] == $past(i_dspi_dat,16))
+			&&(o_wb_data[29:28] == $past(i_dspi_dat,15))
+			&&(o_wb_data[27:26] == $past(i_dspi_dat,14))
+			&&(o_wb_data[25:24] == $past(i_dspi_dat,13))
+			&&(o_wb_data[23:22] == $past(i_dspi_dat,12))
+			&&(o_wb_data[21:20] == $past(i_dspi_dat,11))
+			&&(o_wb_data[19:18] == $past(i_dspi_dat,10))
+			&&(o_wb_data[17:16] == $past(i_dspi_dat,9)
+			&&(o_wb_data[15:14] == $past(i_dspi_dat,8))
+			&&(o_wb_data[13:12] == $past(i_dspi_dat,7))
+			&&(o_wb_data[11:10] == $past(i_dspi_dat,6))
+			&&(o_wb_data[ 9: 8] == $past(i_dspi_dat,5))
+			&&(o_wb_data[ 7: 6] == $past(i_dspi_dat,4))
+			&&(o_wb_data[ 5: 4] == $past(i_dspi_dat,3))
+			&&(o_wb_data[ 3: 2] == $past(i_dspi_dat,2))
+			&&(o_wb_data[ 1: 0] == $past(i_dspi_dat));
+	endsequence;
+
+	// Proper Bus read request
+	property BUS_READ;
+		disable iff (i_reset)
+		(i_wb_stb)&&(!o_wb_stall)&&(!i_wb_we)&&(!cfg_mode)
+			&&(o_dspi_cs_n)
+		|=> READ_REQUEST(fv_addr)
+		##1 MODE_BYTE
+		##1 READ_WORD
+		##1 ACK_WORD;
+	endproperty
+
+	sequence PIPED_READ_SEQUENCE;
+		(!o_dspi_cs_n)&&(o_dspi_mod == DUAL_READ)&&(!cfg_mode)
+			throughout
+		(((o_wb_stall)&&(o_dspi_sck)
+				&&(o_wb_ack))
+				&&((f_outstanding == 2)||(!i_wb_cyc))
+				&&(clk_ctr == 6'd16)
+		##1 ((!o_wb_ack)
+			&&((f_outstanding== 1)||(!pre_ack)||(!i_wb_cyc)))
+			throughout
+		((o_wb_stall)&&(o_dspi_sck)
+				&&(clk_ctr > 1)&&(clk_ctr < 6'd16)
+			       		&&(!cfg_mode)) [*14]
+		##1 (((!o_dspi_sck)&&(!i_wb_stb)||( o_wb_stall))
+			  ||((o_dspi_sck)&&( i_wb_stb)&&(!o_wb_stall)))
+				&&(clk_ctr == 1);
+	endsequence
 
 	// Bus pipe-read request
-	assert property (@(posedge i_clk)
+	property PIPED_READ;
 		disable iff (i_reset)
-		(i_wb_stb)&&(!o_wb_stall)&&(!i_wb_we)&&(!cfg_user_mode)
-			&&(!o_dspi_cs_n)&&(OPT_FLASH_PIPELINE)
-		|=> (((o_wb_stall)&&(!o_dspi_cs_n)&&(o_dspi_sck)
-				&&(o_dspi_mod == `DUAL_READ)&&(o_wb_ack))
-				&&((f_outstanding == 2)||(!i_wb_cyc))
-				&&(clk_ctr == 6'd16)&&(!cfg_user_mode))
-		##1 (((o_wb_stall)&&(!o_dspi_cs_n)&&(o_dspi_sck)
-				&&(o_dspi_mod == `DUAL_READ)&&(!o_wb_ack))
-				&&((f_outstanding== 1)||(!pre_ack)||(!i_wb_cyc))
-				&&(clk_ctr > 0)&&(clk_ctr < 6'd16)
-			       		&&(!cfg_user_mode)) [*14]
-		##1 (((!o_dspi_cs_n)&&(o_dspi_mod == `DUAL_READ)&&(!o_wb_ack))
-				&&((f_outstanding== 1)||(!pre_ack)||(!i_wb_cyc))
-				&&(clk_ctr == 1))
-		##1 (o_wb_ack)||(!$past(pre_ack))||($past(!i_wb_cyc)));
+		(i_wb_stb)&&(!o_wb_stall)&&(!i_wb_we)&&(!cfg_mode)
+			&&(!o_dspi_cs_n)&&(OPT_PIPE)
+		|=> PIPED_READ_SEQUENCE
+		##1 ACK_WORD;
+	endproperty
+
+	// Proper Bus read request
+	assert property (@(posedge i_clk) BUS_READ);
+	// Bus pipe-read request
+
+	//
+	//
+	//
+	// Configuration registers
+	//
+	//
+	//
+	sequence	SPI_CFG_WRITE_SEQ;
+		((o_wb_stall)&&(!o_dspi_cs_n)
+			&&(o_dspi_mod == NORMAL_SPI)&&(!o_wb_ack)
+			&&(cfg_mode)&&(!cfg_speed))
+			throughout
+		((o_dspi_sck) throughout
+		((o_dspi_dat[0] == 1'b0)&&(clk_ctr == 5'd9))
+		##1 ((o_dspi_dat[0] == fv_data[7])&&(clk_ctr == 5'd8))
+		##1 ((o_dspi_dat[0] == fv_data[6])&&(clk_ctr == 5'd7))
+		##1 ((o_dspi_dat[0] == fv_data[5])&&(clk_ctr == 5'd6))
+		##1 ((o_dspi_dat[0] == fv_data[4])&&(clk_ctr == 5'd5))
+		##1 ((o_dspi_dat[0] == fv_data[3])&&(clk_ctr == 5'd4))
+		##1 ((o_dspi_dat[0] == fv_data[2])&&(clk_ctr == 5'd3))
+		##1 ((o_dspi_dat[0] == fv_data[1])&&(clk_ctr == 5'd2)))
+		//
+		##1 ((o_dspi_dat[0] == fv_data[0])&&(clk_ctr == 5'd1)
+				&&(!o_dspi_sck)&&(actual_sck));
+	endsequence
+
+	sequence	QSPI_CFG_WRITE_SEQ;
+		((o_wb_stall)&&(!o_dspi_cs_n)
+			&&(o_dspi_mod == DUAL_WRITE)&&(!o_wb_ack)
+			&&(cfg_mode)&&(cfg_speed)&&(cfg_dir))
+			throughout
+		((o_dspi_dat == 2'b00)&&(clk_ctr == 6'd5)&&(o_dspi_sck))
+		##1 ((o_dspi_dat==$past(i_wb_data[7:6],2))
+				&&(clk_ctr== 6'd4)
+				&&(o_dspi_sck))
+		##1 ((o_dspi_dat==$past(i_wb_data[5:4],3))
+				&&(clk_ctr== 6'd3)
+				&&(o_dspi_sck))
+		##1 ((o_dspi_dat==$past(i_wb_data[3:2],4))
+				&&(clk_ctr== 6'd2)
+				&&(o_dspi_sck))
+		##1 ((o_dspi_dat==$past(i_wb_data[1:0],5))
+				&&(clk_ctr== 6'd1)
+				&&(!o_dspi_sck)&&(actual_sck));
+	endsequence
+
+	sequence	QSPI_CFG_READ_SEQ;
+		((o_wb_stall)&&(!o_dspi_cs_n)
+			&&(o_dspi_mod == DUAL_READ)&&(!o_wb_ack)
+			&&(cfg_mode)&&(cfg_speed)&&(!cfg_dir))
+			throughout
+		((clk_ctr == 5'd3)&&(o_dspi_sck))
+		##1 ((clk_ctr== 5'd2)&&(o_dspi_sck))
+		##1 ((clk_ctr== 5'd1)&&(!o_dspi_sck)&&(actual_sck));
+	endsequence
 
 	// Config write request (low speed)
-	assert property (@(posedge i_clk)
+	property SPI_CFG_WRITE;
 		disable iff (i_reset)
 		(cfg_ls_write)
-		|=> (((o_wb_stall)&&(!o_dspi_cs_n)
-			&&(o_dspi_mod == `NORMAL_SPI)&&(!o_wb_ack)
-			&&(cfg_user_mode)&&(!cfg_user_speed))
-			throughout
-			((o_dspi_sck) throughout
-			((o_dspi_dat[0] == 1'b0)&&(clk_ctr == 6'd9))
-			##1 ((o_dspi_dat[0] == fv_data[7])&&(clk_ctr == 6'd8))
-			##1 ((o_dspi_dat[0] == fv_data[6])&&(clk_ctr == 6'd7))
-			##1 ((o_dspi_dat[0] == fv_data[5])&&(clk_ctr == 6'd6))
-			##1 ((o_dspi_dat[0] == fv_data[4])&&(clk_ctr == 6'd5))
-			##1 ((o_dspi_dat[0] == fv_data[3])&&(clk_ctr == 6'd4))
-			##1 ((o_dspi_dat[0] == fv_data[2])&&(clk_ctr == 6'd3))
-			##1 ((o_dspi_dat[0] == fv_data[1])&&(clk_ctr == 6'd2)))
-			##1 ((o_dspi_dat[0] == fv_data[0])&&(clk_ctr == 6'd1)
-					&&(!o_dspi_sck)&&(actual_sck)))
-			##1((o_wb_ack)||(!$past(pre_ack))||($past(!i_wb_cyc)))
-				&&(o_wb_data[11:10]==2'b10)&&(o_wb_data[8]));
+		|=> SPI_CFG_WRITE_SEQ
+		##1 ((o_wb_ack)||(!$past(pre_ack))||($past(!i_wb_cyc)))
+			&&(o_wb_data[7]==$past(i_qspi_dat[1],8))
+			&&(o_wb_data[6]==$past(i_qspi_dat[1],7))
+			&&(o_wb_data[5]==$past(i_qspi_dat[1],6))
+			&&(o_wb_data[4]==$past(i_qspi_dat[1],5))
+			&&(o_wb_data[3]==$past(i_qspi_dat[1],4))
+			&&(o_wb_data[2]==$past(i_qspi_dat[1],3))
+			&&(o_wb_data[1]==$past(i_qspi_dat[1],2))
+			&&(o_wb_data[0]==$past(i_qspi_dat[1]))
+			&&(o_wb_data[12:10]==3'b100)&&(o_wb_data[8]);
+	endproperty
 
 	// Config read-HS  request
-	assert property (@(posedge i_clk)
+	property QSPI_CFG_READ;
 		disable iff (i_reset)
 		(cfg_hs_read)
-		|=> (((o_wb_stall)&&(!o_dspi_cs_n)
-			&&(o_dspi_mod == `DUAL_READ)&&(!o_wb_ack)
-			&&(cfg_user_mode)&&(cfg_user_speed)&&(!cfg_user_dir))
-			throughout
-			((o_dspi_sck) throughout
-			(clk_ctr == 6'd5) ##1 (clk_ctr== 6'd4)
-			##1 (clk_ctr == 6'd3) ##1 (clk_ctr== 6'd2))
-			##1 (clk_ctr== 6'd1)&&(!o_dspi_sck)&&(actual_sck))
-			##1((o_wb_ack)||(!$past(pre_ack))
-				||($past(!i_wb_cyc))));
+		|=> QSPI_CFG_READ_SEQ
+		##1 ((o_wb_ack)||(!$past(pre_ack))||($past(!i_wb_cyc)))
+			&&(o_wb_data[12:8]==5'b10101)
+			&&(o_wb_data[7:6]==$past(i_dspi_dat,4))
+			&&(o_wb_data[5:4]==$past(i_dspi_dat,3))
+			&&(o_wb_data[3:2]==$past(i_dspi_dat,2))
+			&&(o_wb_data[1:0]==$past(i_dspi_dat));
+	endproperty
 
 	// Config write-HS request
-	assert property (@(posedge i_clk)
+	property QSPI_CFG_WRITE;
 		disable iff (i_reset)
 		(cfg_hs_write)
-		|=> (((o_wb_stall)&&(!o_dspi_cs_n)
-			&&(o_dspi_mod == `DUAL_WRITE)&&(!o_wb_ack)
-			&&(cfg_user_mode)&&(cfg_user_speed)&&(cfg_user_dir))
-			throughout
-			((o_dspi_dat[1:0] == 2'b00)&&(clk_ctr == 6'd5)
-					&&(o_dspi_sck))
-			##1 ((o_dspi_dat[1:0]==fv_data[7:6])&&(clk_ctr == 6'd4)
-					&&(o_dspi_sck))
-			##1 ((o_dspi_dat[1:0]==fv_data[5:4])&&(clk_ctr== 6'd3)
-					&&(o_dspi_sck))
-			##1 ((o_dspi_dat[1:0]==fv_data[3:2])&&(clk_ctr== 6'd2)
-					&&(o_dspi_sck))
-			##1 ((o_dspi_dat[1:0]==fv_data[1:0])&&(clk_ctr== 6'd1)
-					&&(!o_dspi_sck)&&(actual_sck)))
-			##1((o_wb_ack)||(!$past(pre_ack))||($past(!i_wb_cyc)))
-				&&(o_wb_data[11:8]==4'b1111));
+		|=> QSPI_CFG_WRITE_SEQ
+		##1((o_wb_ack)||(!$past(pre_ack))||(!$past(i_wb_cyc)))
+			&&(o_wb_data[12:8]==5'b10111);
+	endproperty
 
-	// Config release  request
-	assert property (@(posedge i_clk)
+	// Config release request
+	property CFG_RELEASE;
 		(OPT_CFG)&&(!i_reset)&&(i_cfg_stb)&&(!o_wb_stall)&&(i_wb_we)
-				&&(i_wb_data[`USER_CS_n])
-		|=> (o_wb_ack)&&(o_dspi_cs_n)&&(!cfg_user_cs)
+				&&(i_wb_data[USER_CS_n])
+		|=> (o_wb_ack)&&(o_dspi_cs_n)&&(!cfg_cs)
 			&&(clk_ctr == 0)
-			&&(cfg_user_mode==$past(i_wb_data[`USER_MODE])));
+			&&(cfg_mode==$past(i_wb_data[CFG_MODE]));
+	endproperty
 
-	// Config read-bus request
-	assert property (@(posedge i_clk)
+	property CFG_READBUS_NOOP;
 		(OPT_CFG)&&(!i_reset)&&(i_cfg_stb)&&(!o_wb_stall)&&(!i_wb_we)
 		|=> (o_wb_ack)&&(o_dspi_cs_n==$past(o_dspi_cs_n))
-			&&(clk_ctr==0));
+			&&(clk_ctr==0);
+	endproperty
 
-	// Non-config responses
-	assert property (@(posedge i_clk)
+	// Non-config responses from the config port
+	property NOCFG_NOOP;
 		(!OPT_CFG)&&(!i_reset)&&(i_cfg_stb)&&(!o_wb_stall)
 		|=> (o_wb_ack)&&(o_dspi_cs_n==$past(o_dspi_cs_n))
-			&&(clk_ctr==0));
+			&&(clk_ctr==0);
+	endproperty
 
-
-	//
-	// Constant data testing
-	//
-	(* anyconst *)	wire	[21:0]	f_const_addr;
-	(* anyconst *)	wire	[31:0]	f_const_data;
-
-	sequence KNOWN_READ_DATA;
-		(i_dspi_dat[1:0] == f_const_data[31:30])
-		##1 (i_dspi_dat[1:0] == f_const_data[29:28])
-		##1 (i_dspi_dat[1:0] == f_const_data[27:26])
-		##1 (i_dspi_dat[1:0] == f_const_data[25:24])
-		##1 (i_dspi_dat[1:0] == f_const_data[23:22])
-		##1 (i_dspi_dat[1:0] == f_const_data[21:20])
-		##1 (i_dspi_dat[1:0] == f_const_data[19:18])
-		##1 (i_dspi_dat[1:0] == f_const_data[17:16])
-		##1 (i_dspi_dat[1:0] == f_const_data[15:14])
-		##1 (i_dspi_dat[1:0] == f_const_data[13:12])
-		##1 (i_dspi_dat[1:0] == f_const_data[11:10])
-		##1 (i_dspi_dat[1:0] == f_const_data[ 9: 8])
-		##1 (i_dspi_dat[1:0] == f_const_data[ 7: 6])
-		##1 (i_dspi_dat[1:0] == f_const_data[ 5: 4])
-		##1 (i_dspi_dat[1:0] == f_const_data[ 3: 2])
-		##1 (i_dspi_dat[1:0] == f_const_data[ 1: 0]);
-	endsequence
-
-	sequence KNOWN_CFG_DATA;
-		(i_dspi_dat[1:0] == f_const_data[ 7: 6])
-		##1 (i_dspi_dat[1:0] == f_const_data[ 5: 4])
-		##1 (i_dspi_dat[1:0] == f_const_data[ 3: 2])
-		##1 (i_dspi_dat[1:0] == f_const_data[ 1: 0]);
-	endsequence
-
-	assume property (@(posedge i_clk)
-		disable iff ((i_reset)||(!i_wb_cyc))
-		(i_wb_stb)&&(!o_wb_stall)&&(!i_wb_we)&&(!cfg_user_mode)
-			&&(o_dspi_cs_n)&&(i_wb_addr == f_const_addr)
-		|=> 1[*17] ##1 KNOWN_READ_DATA);
-
-	assume property (@(posedge i_clk)
-		disable iff ((i_reset)||(!i_wb_cyc))
-		(i_wb_stb)&&(!o_wb_stall)&&(!i_wb_we)&&(!cfg_user_mode)
-			&&(!o_dspi_cs_n)&&(i_wb_addr == f_const_addr)
-		|=> KNOWN_READ_DATA);
-
-	// Known data read, from idle
-	assert property (@(posedge i_clk)
-		disable iff ((i_reset)||(!i_wb_cyc))
-		(i_wb_stb)&&(!o_wb_stall)&&(!i_wb_we)&&(!cfg_user_mode)
-			&&(o_dspi_cs_n)&&(i_wb_addr == f_const_addr)
-		|=> 1[*33]
-		##1 (o_wb_ack)&&(o_wb_data == f_const_data));
-
-	// Known pipelined data read
-	assert property (@(posedge i_clk)
-		disable iff ((i_reset)||(!i_wb_cyc))
-		(i_wb_stb)&&(!o_wb_stall)&&(!i_wb_we)&&(!cfg_user_mode)
-			&&(!o_dspi_cs_n)&&(i_wb_addr == f_const_addr)
-		|=> 1[*16]
-		##1 (o_wb_ack)&&(o_wb_data == f_const_data));
-
-	// Configuration register read, high speed
-	assert property (@(posedge i_clk)
-		disable iff ((i_reset)||(!i_wb_cyc))
-		(cfg_hs_read)
-		##1 (((o_wb_stall)&&(!o_dspi_cs_n)
-			&&(o_dspi_mod == `DUAL_READ)&&(!o_wb_ack)
-			&&(cfg_user_mode)&&(cfg_user_speed)&&(!cfg_user_dir))
-			throughout
-			(clk_ctr == 6'd5)&&(!i_dspi_dat)
-			##1 (clk_ctr == 6'd4)&&(i_dspi_dat== f_const_data[7:6])
-			##1 (clk_ctr == 6'd3)&&(i_dspi_dat== f_const_data[5:4])
-			##1 (clk_ctr == 6'd2)&&(i_dspi_dat== f_const_data[3:2])
-			##1 (clk_ctr == 6'd1)&&(i_dspi_dat== f_const_data[1:0]))
-		|=> ((o_wb_ack)||(!$past(pre_ack))||($past(!i_wb_cyc)))
-			&&(o_wb_data[11:8] == 4'b1101)
-			&&(o_wb_data[7:0] == f_const_data[7:0])
-			&&(cfg_user_mode)&&(cfg_user_speed));
-
-	// Configuration register read, low speed
-	assert property (@(posedge i_clk)
-		disable iff (i_reset)
-		(cfg_ls_write)
-		##1 (((o_wb_stall)&&(!o_dspi_cs_n)
-			&&(o_dspi_mod == `NORMAL_SPI)&&(!o_wb_ack)
-			&&(cfg_user_mode)&&(!cfg_user_speed))
-			throughout
-			##1 (clk_ctr == 6'd9)&&(!i_dspi_dat[1])
-			##1 (clk_ctr == 6'd8)&&(i_dspi_dat[1]==f_const_data[7])
-			##1 (clk_ctr == 6'd7)&&(i_dspi_dat[1]==f_const_data[6])
-			##1 (clk_ctr == 6'd6)&&(i_dspi_dat[1]==f_const_data[5])
-			##1 (clk_ctr == 6'd5)&&(i_dspi_dat[1]==f_const_data[4])
-			##1 (clk_ctr == 6'd4)&&(i_dspi_dat[1]==f_const_data[3])
-			##1 (clk_ctr == 6'd3)&&(i_dspi_dat[1]==f_const_data[2])
-			##1 (clk_ctr == 6'd2)&&(i_dspi_dat[1]==f_const_data[1])
-			##1 (clk_ctr == 6'd1)&&(i_dspi_dat[1]==f_const_data[0]))
-		|=> ((o_wb_ack)||(!$past(pre_ack))||($past(!i_wb_cyc)))
-			&&(o_wb_data[11:8] == 4'b1011)
-			&&(o_wb_data[7:0] == f_const_data[7:0])
-			&&(cfg_user_mode)&&(!cfg_user_speed));
+	assert	property (@(posedge i_clk) SPI_CFG_WRITE);
+	assert	property (@(posedge i_clk) QSPI_CFG_READ);
+	assert	property (@(posedge i_clk) QSPI_CFG_WRITE);
+	assert	property (@(posedge i_clk) CFG_RELEASE);
+	assert	property (@(posedge i_clk) CFG_READBUS_NOOP);
+	assert	property (@(posedge i_clk) NOCFG_NOOP);
 
 `endif
 	////////////////////////////////////////////////////////////////////////
