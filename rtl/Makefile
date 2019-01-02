@@ -38,13 +38,25 @@
 ################################################################################
 ##
 ##
+# Files
+PCFFILE= tinyzip.pcf
+BLIF   = tinyzip.blif
+JSON   = tinyzip.json
+ASCFILE=  tinyzip.asc
+BINFILE=  tinyzip.bin
+#
+#
 .PHONY: all
-all:	cpudefs.h design.h verilated tinyzip.bin
-YYMMDD=`date +%Y%m%d`
+all:	cpudefs.h design.h verilated $(BINFILE)
+#
+# Tools
+NEXTPNR=nextpnr-ice40
 CXX   := g++
+# Directories
 FBDIR := .
 VDIRFB:= $(FBDIR)/obj_dir
 VOBJ := obj_dir
+YYMMDD=`date +%Y%m%d`
 include auto.mk
 SUBMAKE := $(MAKE) --no-print-directory --directory=$(VOBJ) -f
 ifeq ($(VERILATOR_ROOT),)
@@ -109,25 +121,27 @@ $(VDIRFB)/V%__ALL.a: $(VDIRFB)/V%.mk
 #
 #
 .PHONY: bin
-bin: tinyzip.bin
+bin: $(BINFILE)
 #
 #
-tinyzip.json: tinyzip.blif
-tinyzip.blif: toplevel.v $(VFLIST)
-	yosys -ql yosys.log -p 'synth_ice40 -blif tinyzip.blif -json tinyzip.json -top toplevel' $^
+$(JSON): $(BLIF)
+$(BLIF): toplevel.v $(VFLIST)
+	yosys -ql yosys.log -p 'synth_ice40 -blif $(BLIF) -json $(JSON) -top toplevel' $^
 
 .PHONY: yosys
-yosys: tinyzip.blif
+yosys: $(BLIF)
 
-PCFFILE=tinyzip.pcf
-tinyzip.asc: $(PCFFILE) tinyzip.blif
-#	arachne-pnr -d 8k -r -P cm81 -p $(PCFFILE) tinyzip.blif -o $@
-	nextpnr-ice40 --lp8k --package cm81 --pcf $(PCFFILE) --json tinyzip.json --asc tinyzip.asc
+$(ASCFILE): $(PCFFILE) $(JSON)
+	$(NEXTPNR) --freq 25 --lp8k --package cm81 --pcf $(PCFFILE) --json $(JSON) --asc $(ASCFILE)
+
+.PHONY: nextpnr
+nextpnr: $(ASCFILE)
 
 .PHONY: arachne
-arachne: tinyzip.asc
+arachne: $(BLIF)
+	arachne-pnr -d 8k -r -P cm81 -p $(PCFFILE) $(BLIF) -o $(ASCFILE)
 
-tinyzip.bin: tinyzip.asc
+$(BINFILE): $(ASCFILE)
 	icetime -d lp8k -c 25 $<
 	icepack $< $@
 
@@ -136,7 +150,7 @@ archive:
 
 .PHONY: clean
 clean:
-	rm -rf *.blif *.asc *.bin
+	rm -rf $(BINFILE) $(ASCFILE) $(JSON) $(BLIF)
 	rm -rf $(VDIRFB)/*.mk
 	rm -rf $(VDIRFB)/*.cpp
 	rm -rf $(VDIRFB)/*.h

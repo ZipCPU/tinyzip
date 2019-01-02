@@ -2,7 +2,7 @@
 //
 // Filename: 	slowmpy.v
 //
-// Project:	A multiply core generator
+// Project:	Zip CPU -- a small, lightweight, RISC CPU soft core
 //
 // Purpose:	This is a signed (OPT_SIGNED=1) or unsigned (OPT_SIGNED=0)
 // 		multiply designed for low logic and slow data signals.  It
@@ -45,8 +45,8 @@
 //
 module	slowmpy(i_clk, i_reset, i_stb, i_a, i_b, i_aux, o_busy,
 		o_done, o_p, o_aux);
-	parameter			LGNA = 4;
-	parameter	[LGNA:0]	NA = 12;
+	parameter			LGNA = 6;
+	parameter	[LGNA:0]	NA = 33;
 	parameter	[0:0]		OPT_SIGNED = 1'b1;
 	localparam	NB = NA;	// Must be = NA for OPT_SIGNED to work
 	//
@@ -133,86 +133,6 @@ module	slowmpy(i_clk, i_reset, i_stb, i_a, i_b, i_aux, o_busy,
 	end
 
 `ifdef	FORMAL
-`ifdef	SLOWMPY
-`define	ASSUME	assume
-`define	ASSERT	assert
-`else
-`define	ASSUME	assert
-`define	ASSERT	assume
-`endif
-
-	reg	f_past_valid;
-	initial	f_past_valid = 1'b0;
-	always @(posedge i_clk)
-		f_past_valid <= 1'b1;
-	initial	assume(i_reset);
-	always @(*)
-	if (!f_past_valid)
-		`ASSUME(i_reset);
-
-	always @(posedge i_clk)
-	if ((!f_past_valid)||($past(i_reset)))
-	begin
-		`ASSERT(almost_done == 0);
-		`ASSERT(o_done == 0);
-		`ASSERT(o_busy == 0);
-		`ASSERT(aux == 0);
-	end
-
-	// Assumptions about our inputs
-	always @(posedge i_clk)
-	if ((f_past_valid)&&(!$past(i_reset))&&($past(i_stb))&&($past(o_busy)))
-	begin
-		`ASSUME(i_stb);
-		`ASSUME($stable(i_a));
-		`ASSUME($stable(i_b));
-	end
-
-	//
-	// For now, just formally verify our internal signaling
-	//
-
-	always @(posedge i_clk)
-		`ASSERT(almost_done == (o_busy&&(&count)));
-
-	always @(*)
-		if (!(&count[LGNA-1:1])||(count[0]))
-			`ASSERT(!o_done);
-
-	always @(posedge i_clk)
-	if (o_done)
-		`ASSERT(!o_busy);
-	always @(posedge i_clk)
-	if (!o_busy)
-		`ASSERT(!almost_done);
-
-	reg	[NA-1:0]	f_a, f_b;
-	always @(posedge i_clk)
-	if ((i_stb)&&(!o_busy))
-	begin
-		f_a <= i_a;
-		f_b <= i_b;
-	end
-
-	always @(*)
-	if (o_done)
-	begin
-		if ((f_a == 0)||(f_b == 0))
-			`ASSERT(o_p == 0);
-		else
-			`ASSERT(o_p[NA+NB-1] == f_a[NA-1] ^ f_b[NA-1]);
-	end
-
-	always @(posedge i_clk)
-		cover(o_done);
-
-	reg	f_past_done;
-	initial	f_past_done = 1'b0;
-	always @(posedge i_clk)
-	if (o_done)
-		f_past_done = 1'b1;
-
-	always @(posedge i_clk)
-		cover((o_done)&&(f_past_done));
+// The formal properties for this module are maintained elsewhere
 `endif
 endmodule

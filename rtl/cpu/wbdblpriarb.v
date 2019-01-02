@@ -93,6 +93,10 @@ module	wbdblpriarb(i_clk, i_reset,
 	//
 	parameter			F_LGDEPTH = 3;
 	//
+	//
+	parameter	F_MAX_STALL = 0;
+	parameter	F_MAX_ACK_DELAY=0;
+	//
 	// F_OPT_CLK2FFLOGIC shouldn't be needed.  However, if this component
 	// is being used as a component of a multi-clock formal design, then
 	// it will be necessary.  Set this any-time the design is being built
